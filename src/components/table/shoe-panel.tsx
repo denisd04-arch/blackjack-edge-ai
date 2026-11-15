@@ -48,7 +48,7 @@ export function ShoePanel({
         <DataPanel
           label="Penetration"
           value={`${shoe.penetration}%`}
-          hint="Noch keine EV — Phase 4"
+          hint="EV auf /entscheidungen"
         />
       </DataPanelGrid>
       {depleted.length > 0 ? (

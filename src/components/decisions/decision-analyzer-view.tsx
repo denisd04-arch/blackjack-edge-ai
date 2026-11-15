@@ -1,0 +1,259 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import clsx from "clsx";
+import {
+  CARD_RANKS,
+  RANK_LABEL_DE,
+  STANDARD_H17_8DECK_BASELINE,
+  EVOLUTION_FREE_BET_STUB,
+  FiniteShoeEvEngine,
+  type CardRank,
+  type GameProfile,
+} from "@blackjack-edge/engine";
+import { AppShell } from "@/components/layout/app-shell";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { DataPanel, DataPanelGrid } from "@/components/ui/data-panel";
+import { useTableSession } from "@/lib/table-session-context";
+
+const PROFILES: GameProfile[] = [
+  STANDARD_H17_8DECK_BASELINE,
+  EVOLUTION_FREE_BET_STUB,
+];
+
+export function DecisionAnalyzerView() {
+  const { snapshot } = useTableSession();
+  const [profileId, setProfileId] = useState(STANDARD_H17_8DECK_BASELINE.id);
+  const [playerCards, setPlayerCards] = useState<CardRank[]>([]);
+  const [dealerUp, setDealerUp] = useState<CardRank | null>(null);
+
+  const profile = PROFILES.find((p) => p.id === profileId) ?? PROFILES[0];
+  const engine = useMemo(() => new FiniteShoeEvEngine(profile), [profile]);
+
+  const analysis = useMemo(() => {
+    if (!dealerUp || playerCards.length < 2) return null;
+    return engine.analyze({
+      playerCards,
+      dealerUpcard: dealerUp,
+      shoeRemainingByRank: snapshot.shoe.remainingByRank,
+    });
+  }, [dealerUp, engine, playerCards, snapshot.shoe.remainingByRank]);
+
+  function loadFromTableRound() {
+    const roundCards = snapshot.dealt.filter((c) => c.roundId === snapshot.roundId);
+    const player = roundCards
+      .filter((c) => c.target === "player")
+      .map((c) => c.rank);
+    const dealer = roundCards
+      .filter((c) => c.target === "dealer")
+      .map((c) => c.rank);
+    if (player.length >= 2 && dealer.length >= 1) {
+      setPlayerCards(player.slice(0, 5));
+      setDealerUp(dealer[0]);
+    }
+  }
+
+  function addPlayerRank(rank: CardRank) {
+    setPlayerCards((prev) => (prev.length >= 5 ? prev : [...prev, rank]));
+  }
+
+  function removePlayerAt(index: number) {
+    setPlayerCards((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  return (
+    <AppShell
+      title="Entscheidungsanalyse"
+      subtitle="Phase 4 — Finite-Shoe-EV aus aktuellem Schuh (keine Mock-Werte)."
+    >
+      <Card eyebrow="Profil" title="Regelwerk">
+        <div className="flex flex-wrap gap-2">
+          {PROFILES.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setProfileId(p.id)}
+              className={clsx(
+                "rounded-lg border px-3 py-1.5 text-sm",
+                profileId === p.id
+                  ? "border-neon bg-emerald-mist/40 text-neon"
+                  : "border-line text-ink-muted"
+              )}
+            >
+              {p.labelDe}
+            </button>
+          ))}
+        </div>
+        {profile.incomplete ? (
+          <p className="mt-3 text-sm text-warning">
+            Unvollständiges Profil — kein definitiver EV.
+          </p>
+        ) : null}
+        <Button className="mt-3" variant="secondary" onClick={loadFromTableRound}>
+          Aus aktueller Runde übernehmen
+        </Button>
+      </Card>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <Card title="Spielerhand" eyebrow="Eingabe">
+          <p className="mb-2 text-xs text-ink-muted">
+            Gewählte Karten ({playerCards.length}/5):{" "}
+            {playerCards.map((r) => RANK_LABEL_DE[r]).join(", ") || "—"}
+          </p>
+          <div className="mb-2 flex flex-wrap gap-2">
+            {playerCards.map((rank, i) => (
+              <button
+                key={`${rank}-${i}`}
+                type="button"
+                onClick={() => removePlayerAt(i)}
+                className="rounded border border-neon/50 bg-emerald-mist/30 px-2 py-1 font-mono text-sm"
+                title="Entfernen"
+              >
+                {rank} ×
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {CARD_RANKS.map((rank) => (
+              <button
+                key={rank}
+                type="button"
+                onClick={() => addPlayerRank(rank)}
+                className="rounded border border-line px-2 py-1 font-mono text-sm hover:border-neon"
+              >
+                {rank}
+              </button>
+            ))}
+          </div>
+          <Button
+            className="mt-2"
+            variant="ghost"
+            onClick={() => setPlayerCards([])}
+          >
+            Spieler leeren
+          </Button>
+        </Card>
+        <Card title="Dealer-Upcard" eyebrow="Eingabe">
+          <div className="flex flex-wrap gap-2">
+            {CARD_RANKS.map((rank) => (
+              <button
+                key={rank}
+                type="button"
+                onClick={() => setDealerUp(rank)}
+                className={clsx(
+                  "rounded border px-2 py-1 font-mono text-sm",
+                  dealerUp === rank
+                    ? "border-neon text-neon"
+                    : "border-line hover:border-neon"
+                )}
+              >
+                {RANK_LABEL_DE[rank]}
+              </button>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      {!analysis ? (
+        <p className="mt-6 text-sm text-ink-muted">
+          Mindestens zwei Spielerkarten und eine Dealer-Upcard wählen.
+        </p>
+      ) : null}
+
+      {analysis && !analysis.definitive ? (
+        <p className="mt-6 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
+          {analysis.messageDe}
+        </p>
+      ) : null}
+
+      {analysis && analysis.definitive ? (
+        <div className="mt-6 space-y-4">
+          <p className="text-sm text-ink-muted">{analysis.messageDe}</p>
+          <DataPanelGrid>
+            <DataPanel
+              label="Empfehlung"
+              value={actionLabel(analysis.recommended)}
+              hint={analysis.rulesLabelDe}
+            />
+            <DataPanel
+              label="Dealer bust"
+              value={`${analysis.dealerBustPct.toFixed(1)}%`}
+            />
+            {analysis.dealer22PushPct > 0 ? (
+              <DataPanel
+                label="Dealer 22 Push"
+                value={`${analysis.dealer22PushPct.toFixed(1)}%`}
+              />
+            ) : null}
+          </DataPanelGrid>
+          <div className="overflow-x-auto rounded-xl border border-line">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-ink-muted">
+                  <th className="px-3 py-2">Aktion</th>
+                  <th className="px-3 py-2">EV</th>
+                  <th className="px-3 py-2">Varianz</th>
+                  <th className="px-3 py-2">Gewinn</th>
+                  <th className="px-3 py-2">Push</th>
+                  <th className="px-3 py-2">Verlust</th>
+                </tr>
+              </thead>
+              <tbody>
+                {analysis.actions.map((row) => (
+                  <tr
+                    key={row.action}
+                    className={clsx(
+                      "border-b border-line/50",
+                      analysis.recommended === row.action && "bg-emerald-mist/20"
+                    )}
+                  >
+                    <td className="px-3 py-2 font-medium">
+                      {row.labelDe}
+                      {!row.available ? (
+                        <span className="ml-2 text-xs text-ink-faint">—</span>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2 font-mono">
+                      {row.available ? formatEv(row.ev) : "—"}
+                    </td>
+                    <td className="px-3 py-2 font-mono">
+                      {row.available ? row.variance.toFixed(3) : "—"}
+                    </td>
+                    <td className="px-3 py-2 font-mono">
+                      {row.available ? `${row.winPct.toFixed(1)}%` : "—"}
+                    </td>
+                    <td className="px-3 py-2 font-mono">
+                      {row.available ? `${row.pushPct.toFixed(1)}%` : "—"}
+                    </td>
+                    <td className="px-3 py-2 font-mono">
+                      {row.available ? `${row.lossPct.toFixed(1)}%` : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+    </AppShell>
+  );
+}
+
+function formatEv(ev: number): string {
+  const s = ev > 0 ? "+" : "";
+  return `${s}${ev.toFixed(4)}`;
+}
+
+function actionLabel(
+  a: "stand" | "hit" | "double" | "split" | null
+): string {
+  if (!a) return "—";
+  const map = {
+    stand: "Stehen",
+    hit: "Karte",
+    double: "Verdoppeln",
+    split: "Teilen",
+  };
+  return map[a];
+}
