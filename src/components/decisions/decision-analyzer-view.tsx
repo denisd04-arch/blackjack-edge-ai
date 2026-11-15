@@ -15,6 +15,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DataPanel, DataPanelGrid } from "@/components/ui/data-panel";
+import { LiveDecisionTracker } from "@/components/decisions/live-decision-tracker";
 import { useTableSession } from "@/lib/table-session-context";
 
 const PROFILES: GameProfile[] = [
@@ -64,9 +65,10 @@ export function DecisionAnalyzerView() {
 
   return (
     <AppShell
-      title="Entscheidungsanalyse"
-      subtitle="Phase 4 — Finite-Shoe-EV aus aktuellem Schuh (keine Mock-Werte)."
+      title="Entscheidungstracker"
+      subtitle="Live-Tracking + manuelle Analyse — Finite-Shoe-EV, keine Mock-Werte."
     >
+      <LiveDecisionTracker />
       <Card eyebrow="Profil" title="Regelwerk">
         <div className="flex flex-wrap gap-2">
           {PROFILES.map((p) => (

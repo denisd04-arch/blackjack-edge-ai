@@ -29,7 +29,7 @@ export const NAV_SECTIONS: NavSection[] = [
     href: "/entscheidungen",
     labelDe: "Entscheidungstracker",
     phase: 5,
-    descriptionDe: "Live-Hände und optimale Aktionen.",
+    descriptionDe: "Live-Session-Log und EV-Empfehlungen.",
   },
   {
     href: "/regeln",

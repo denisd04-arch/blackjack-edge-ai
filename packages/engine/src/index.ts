@@ -8,6 +8,8 @@ export * from "./table-session";
 export * from "./hand";
 export * from "./blackjack-rules";
 export * from "./decision-analysis";
+export * from "./live-hand";
+export * from "./decision-log";
 export * from "./ev-core";
 export { FiniteShoeEvEngine } from "./finite-shoe-ev-engine";
 export { StubBlackjackMathEngine } from "./stub-engine";

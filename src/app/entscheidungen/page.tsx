@@ -1,7 +1,7 @@
 import { DecisionAnalyzerView } from "@/components/decisions/decision-analyzer-view";
 
 export const metadata = {
-  title: "Entscheidungsanalyse",
+  title: "Entscheidungstracker",
 };
 
 export default function EntscheidungenPage() {
