@@ -1,0 +1,2 @@
+Phase 1 source lives in commit on branch cursor/phase-1-foundation-04e1.
+Run full sync from /agent/blackjack-edge-ai local commit a1dc553 if GitHub MCP partial.
