@@ -56,13 +56,13 @@ export function LiveDecisionTracker() {
               : latest.messageDe}
           </p>
         ) : null}
-      </motion>
+      </div>
 
-      <motion className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap gap-2">
         <Button variant="ghost" onClick={clearLog}>
           Log leeren
         </Button>
-      </motion>
+      </div>
 
       {entries.length === 0 ? (
         <p className="mt-4 text-sm text-ink-muted">
@@ -139,14 +139,4 @@ export function LiveDecisionTracker() {
 function formatEv(ev: number | null): string {
   if (ev == null) return "—";
   return ev > 0 ? `+${ev.toFixed(3)}` : ev.toFixed(3);
-}
-
-function motion({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return <div className={className}>{children}</div>;
 }
