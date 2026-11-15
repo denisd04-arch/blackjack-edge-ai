@@ -75,7 +75,11 @@ export function DigitalTable() {
 
         <aside className="space-y-4">
           <Card title="Schuh" eyebrow="Phase 2">
-            <ShoePanel shoe={snapshot.shoe} />
+            <ShoePanel
+              shoe={snapshot.shoe}
+              canChangeDecks={snapshot.dealt.length === 0}
+              onDecksChange={actions.setDecks}
+            />
             <div className="mt-4 flex flex-wrap gap-2">
               <Button type="button" variant="secondary" onClick={actions.resetShoe}>
                 Neuer Schuh

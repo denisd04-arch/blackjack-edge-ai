@@ -4,11 +4,37 @@ import type { ShoeSnapshot } from "@blackjack-edge/engine";
 import { CARD_RANKS, RANK_LABEL_DE } from "@blackjack-edge/engine";
 import { DataPanel, DataPanelGrid } from "@/components/ui/data-panel";
 
-export function ShoePanel({ shoe }: { shoe: ShoeSnapshot }) {
+const DECK_OPTIONS = [1, 2, 4, 6, 8, 10, 12] as const;
+
+export function ShoePanel({
+  shoe,
+  canChangeDecks,
+  onDecksChange,
+}: {
+  shoe: ShoeSnapshot;
+  canChangeDecks?: boolean;
+  onDecksChange?: (decks: number) => void;
+}) {
   const depleted = CARD_RANKS.filter((r) => shoe.remainingByRank[r] === 0);
 
   return (
     <section className="space-y-4">
+      {canChangeDecks && onDecksChange ? (
+        <label className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
+          <span>Schuhgröße:</span>
+          <select
+            value={shoe.decks}
+            onChange={(e) => onDecksChange(Number(e.target.value))}
+            className="rounded-lg border border-border bg-canvas px-2 py-1 font-mono text-ink"
+          >
+            {DECK_OPTIONS.map((d) => (
+              <option key={d} value={d}>
+                {d} Decks
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       <DataPanelGrid>
         <DataPanel
           label="Decks"
