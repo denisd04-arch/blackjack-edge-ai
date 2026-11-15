@@ -6,7 +6,7 @@ Professional mathematical analysis and card counting for **Evolution Free Bet** 
 
 - **Web:** Next.js 15 (App Router), TypeScript, Tailwind CSS
 - **Math:** `@blackjack-edge/engine` (workspace package)
-- **Data:** Supabase (client placeholder; migrations in `supabase/migrations/` — review before remote apply)
+- **Data:** Supabase (`@supabase/ssr`, RLS schema in `supabase/migrations/`; see `docs/DEPLOYMENT.md`)
 
 ## Develop
 
@@ -29,7 +29,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Environment
 
-Copy `.env.example` to `.env.local` and set Supabase keys when ready.
+Copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_SUPABASE_ANON_KEY` (URL is pre-filled for project `zzlxqoiavnqpvsadfvrl`).
 
 ## Phases
 

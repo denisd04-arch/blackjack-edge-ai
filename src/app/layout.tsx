@@ -1,26 +1,7 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { LOCALE } from "@/lib/i18n";
 import { Providers } from "@/components/providers";
-
-const plexSans = IBM_Plex_Sans({
-  variable: "--font-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
-
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-display",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-});
-
-const plexMono = IBM_Plex_Mono({
-  variable: "--font-mono",
-  subsets: ["latin"],
-  weight: ["400", "500"],
-});
 
 export const metadata: Metadata = {
   title: {
@@ -38,9 +19,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang={LOCALE}>
-      <body
-        className={`${plexSans.variable} ${spaceGrotesk.variable} ${plexMono.variable} font-sans`}
-      >
+      <body className="font-sans">
         <Providers>{children}</Providers>
       </body>
     </html>
