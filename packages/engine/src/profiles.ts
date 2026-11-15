@@ -16,6 +16,28 @@ function incompleteProfile(
   };
 }
 
+/** Complete reference rules for finite-shoe EV (Phase 4 baseline). */
+export const STANDARD_H17_8DECK_BASELINE: GameProfile = {
+  id: "standard-h17-8deck",
+  variant: "evolution_free_bet",
+  labelDe: "Referenz: Standard H17 (8 Decks)",
+  rules: {
+    decks: 8,
+    penetration: 0.75,
+    dealerHitsSoft17: true,
+    doubleAfterSplit: true,
+    resplitAces: false,
+    freeSplitOn: [],
+    freeDoubleOn: [],
+    pushOn22: false,
+    infiniteFreeActions: false,
+  },
+  countingSystems: ["hi_lo", "omega_ii"],
+  incomplete: false,
+  missingFields: [],
+  updatedAt: new Date(0).toISOString(),
+};
+
 export const EVOLUTION_FREE_BET_STUB: GameProfile = incompleteProfile({
   id: "evo-free-bet-default",
   variant: "evolution_free_bet",
