@@ -67,7 +67,7 @@ function BrandMark() {
         <span className="font-display text-lg font-semibold text-ink group-hover:text-neon">
           Blackjack Edge AI
         </span>
-        <span className="block text-xs text-ink-muted">Terminal · Phase 1</span>
+        <span className="block text-xs text-ink-muted">Terminal · Live</span>
       </span>
     </Link>
   );
