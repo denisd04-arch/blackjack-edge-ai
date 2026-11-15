@@ -21,12 +21,32 @@ describe("DigitalTableSession", () => {
   it("rejects deal when rank exhausted", () => {
     const session = new DigitalTableSession({ decks: 1 });
     session.startRound();
-    for (let i = 0; i < 4; i++) {
-      expect(session.dealCard("2", "clubs", "other").ok).toBe(true);
+    const suits = ["clubs", "diamonds", "hearts", "spades"] as const;
+    for (const suit of suits) {
+      expect(session.dealCard("2", suit, "other").ok).toBe(true);
     }
-    const blocked = session.dealCard("2", "diamonds", "dealer");
+    const blocked = session.dealCard("2", "clubs", "dealer");
     expect(blocked.ok).toBe(false);
     if (!blocked.ok) expect(blocked.code).toBe("SHOE_DEPLETED");
+  });
+
+  it("exposes count snapshot synced with deals", () => {
+    const session = new DigitalTableSession({ decks: 8 });
+    session.startRound();
+    session.dealCard("5", "hearts", "player");
+    session.dealCard("K", "spades", "dealer");
+    const { counts } = session.snapshot();
+    expect(counts.hiLo.running).toBe(0);
+    expect(counts.omegaII.running).toBe(0);
+    expect(counts.cardsRemaining).toBe(8 * 52 - 2);
+  });
+
+  it("blocks deal when suit exhausted but rank remains", () => {
+    const session = new DigitalTableSession({ decks: 1 });
+    session.startRound();
+    expect(session.dealCard("A", "spades", "player").ok).toBe(true);
+    const blocked = session.dealCard("A", "spades", "dealer");
+    expect(blocked.ok).toBe(false);
   });
 
   it("edit and remove restore inventory", () => {
