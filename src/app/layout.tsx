@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { LOCALE } from "@/lib/i18n";
+import { Providers } from "@/components/providers";
 
 const plexSans = IBM_Plex_Sans({
   variable: "--font-sans",
@@ -40,7 +41,7 @@ export default function RootLayout({
       <body
         className={`${plexSans.variable} ${spaceGrotesk.variable} ${plexMono.variable} font-sans`}
       >
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

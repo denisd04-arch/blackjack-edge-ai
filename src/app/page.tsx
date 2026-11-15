@@ -1,3 +1,4 @@
+import { HomeCountTeaser } from "@/components/counting/home-count-teaser";
 import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button";
@@ -34,6 +35,9 @@ export default function HomePage() {
       </DataPanelGrid>
 
       <OverviewCards health={health} />
+      <div className="mt-8">
+        <HomeCountTeaser />
+      </div>
     </AppShell>
   );
 }

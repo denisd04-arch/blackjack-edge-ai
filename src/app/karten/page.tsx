@@ -1,9 +1,9 @@
-import { renderSectionPage, sectionMetadata } from "@/lib/section-page";
+import { CardInventoryView } from "@/components/counting/card-inventory-view";
 
-const HREF = "/karten";
+export const metadata = {
+  title: "Karten & Zählung",
+};
 
-export const metadata = sectionMetadata(HREF);
-
-export default function Page() {
-  return renderSectionPage(HREF);
+export default function KartenPage() {
+  return <CardInventoryView />;
 }
