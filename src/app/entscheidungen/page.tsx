@@ -1,9 +1,9 @@
-import { renderSectionPage, sectionMetadata } from "@/lib/section-page";
+import { DecisionAnalyzerView } from "@/components/decisions/decision-analyzer-view";
 
-const HREF = "/entscheidungen";
+export const metadata = {
+  title: "Entscheidungsanalyse",
+};
 
-export const metadata = sectionMetadata(HREF);
-
-export default function Page() {
-  return renderSectionPage(HREF);
+export default function EntscheidungenPage() {
+  return <DecisionAnalyzerView />;
 }
