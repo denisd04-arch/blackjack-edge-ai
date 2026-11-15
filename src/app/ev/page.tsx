@@ -1,9 +1,7 @@
-import { renderSectionPage, sectionMetadata } from "@/lib/section-page";
+import { EvHubView } from "@/components/phase4/ev-hub-view";
 
-const HREF = "/ev";
+export const metadata = { title: "Wahrscheinlichkeit & EV" };
 
-export const metadata = sectionMetadata(HREF);
-
-export default function Page() {
-  return renderSectionPage(HREF);
+export default function EvPage() {
+  return <EvHubView />;
 }

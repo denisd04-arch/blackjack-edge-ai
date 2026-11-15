@@ -1,9 +1,7 @@
-import { renderSectionPage, sectionMetadata } from "@/lib/section-page";
+import { AssistantView } from "@/components/phase11/assistant-view";
 
-const HREF = "/assistent";
+export const metadata = { title: "Assistent" };
 
-export const metadata = sectionMetadata(HREF);
-
-export default function Page() {
-  return renderSectionPage(HREF);
+export default function AssistentPage() {
+  return <AssistantView />;
 }

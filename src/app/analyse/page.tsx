@@ -1,9 +1,7 @@
-import { renderSectionPage, sectionMetadata } from "@/lib/section-page";
+import { AnalyseView } from "@/components/phase12/analyse-view";
 
-const HREF = "/analyse";
+export const metadata = { title: "Performance & Analyse" };
 
-export const metadata = sectionMetadata(HREF);
-
-export default function Page() {
-  return renderSectionPage(HREF);
+export default function AnalysePage() {
+  return <AnalyseView />;
 }

@@ -1,9 +1,7 @@
-import { renderSectionPage, sectionMetadata } from "@/lib/section-page";
+import { BacktestView } from "@/components/phase9/backtest-view";
 
-const HREF = "/backtest";
+export const metadata = { title: "Backtesting" };
 
-export const metadata = sectionMetadata(HREF);
-
-export default function Page() {
-  return renderSectionPage(HREF);
+export default function BacktestPage() {
+  return <BacktestView />;
 }

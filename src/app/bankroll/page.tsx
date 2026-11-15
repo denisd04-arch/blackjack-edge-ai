@@ -1,9 +1,7 @@
-import { renderSectionPage, sectionMetadata } from "@/lib/section-page";
+import { BankrollView } from "@/components/phase8/bankroll-view";
 
-const HREF = "/bankroll";
+export const metadata = { title: "Bankroll & Risiko" };
 
-export const metadata = sectionMetadata(HREF);
-
-export default function Page() {
-  return renderSectionPage(HREF);
+export default function BankrollPage() {
+  return <BankrollView />;
 }

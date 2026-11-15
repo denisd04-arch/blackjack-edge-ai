@@ -1,9 +1,7 @@
-import { renderSectionPage, sectionMetadata } from "@/lib/section-page";
+import { RulesView } from "@/components/phase6/rules-view";
 
-const HREF = "/regeln";
+export const metadata = { title: "Free-Bet-Regeln" };
 
-export const metadata = sectionMetadata(HREF);
-
-export default function Page() {
-  return renderSectionPage(HREF);
+export default function RegelnPage() {
+  return <RulesView />;
 }

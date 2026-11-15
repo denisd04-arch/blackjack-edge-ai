@@ -1,9 +1,7 @@
-import { renderSectionPage, sectionMetadata } from "@/lib/section-page";
+import { ForwardtestView } from "@/components/phase10/forwardtest-view";
 
-const HREF = "/forwardtest";
+export const metadata = { title: "Forwardtesting" };
 
-export const metadata = sectionMetadata(HREF);
-
-export default function Page() {
-  return renderSectionPage(HREF);
+export default function ForwardtestPage() {
+  return <ForwardtestView />;
 }

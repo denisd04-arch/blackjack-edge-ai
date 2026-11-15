@@ -1,9 +1,7 @@
-import { renderSectionPage, sectionMetadata } from "@/lib/section-page";
+import { SideBetsView } from "@/components/phase7/side-bets-view";
 
-const HREF = "/nebenwetten";
+export const metadata = { title: "Nebenwetten" };
 
-export const metadata = sectionMetadata(HREF);
-
-export default function Page() {
-  return renderSectionPage(HREF);
+export default function NebenwettenPage() {
+  return <SideBetsView />;
 }
