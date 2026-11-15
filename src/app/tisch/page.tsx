@@ -1,9 +1,9 @@
-import { renderSectionPage, sectionMetadata } from "@/lib/section-page";
+import { DigitalTable } from "@/components/table/digital-table";
 
-const HREF = "/tisch";
+export const metadata = {
+  title: "Digitaler Tisch",
+};
 
-export const metadata = sectionMetadata(HREF);
-
-export default function Page() {
-  return renderSectionPage(HREF);
+export default function TischPage() {
+  return <DigitalTable />;
 }
