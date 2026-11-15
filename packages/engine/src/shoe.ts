@@ -1,12 +1,19 @@
 import { CARD_RANKS, type CardRank } from "./cards";
+import {
+  aggregateRankInventory,
+  type SuitInventory,
+} from "./suit-inventory";
 
 export type RankInventory = Record<CardRank, number>;
 
 export interface ShoeSnapshot {
   decks: number;
   remainingByRank: RankInventory;
+  remainingBySuit: SuitInventory;
   cardsDealt: number;
   cardsTotal: number;
+  cardsRemaining: number;
+  decksRemaining: number;
   penetration: number;
 }
 
@@ -43,20 +50,41 @@ export function returnRank(
   return { ...inventory, [rank]: inventory[rank] + 1 };
 }
 
+export function shoeSnapshotFromSuit(
+  decks: number,
+  suitInventory: SuitInventory,
+  cardsDealt: number
+): ShoeSnapshot {
+  const remainingByRank = aggregateRankInventory(suitInventory);
+  return shoeSnapshot(decks, remainingByRank, suitInventory, cardsDealt);
+}
+
 export function shoeSnapshot(
   decks: number,
   remainingByRank: RankInventory,
+  remainingBySuit: SuitInventory,
   cardsDealt: number
 ): ShoeSnapshot {
   const cardsTotal = decks * 52;
   const cardsRemaining = totalRemaining(remainingByRank);
+  const decksRemaining =
+    cardsRemaining === 0
+      ? 0
+      : Math.round((cardsRemaining / 52) * 1000) / 1000;
   const penetration =
     cardsTotal === 0 ? 0 : Math.round((cardsDealt / cardsTotal) * 1000) / 10;
+  const suitCopy = {} as SuitInventory;
+  for (const suit of Object.keys(remainingBySuit) as (keyof SuitInventory)[]) {
+    suitCopy[suit] = { ...remainingBySuit[suit] };
+  }
   return {
     decks,
     remainingByRank: { ...remainingByRank },
+    remainingBySuit: suitCopy,
     cardsDealt,
     cardsTotal,
+    cardsRemaining,
+    decksRemaining,
     penetration,
   };
 }
