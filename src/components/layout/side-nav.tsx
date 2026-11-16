@@ -4,7 +4,6 @@ import clsx from "clsx";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_SECTIONS } from "@/lib/navigation";
-import { formatPhaseLabel } from "@/lib/i18n";
 
 export function SideNav() {
   const pathname = usePathname();
@@ -29,10 +28,7 @@ export function SideNav() {
           )}
         >
           <span className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium">{section.labelDe}</span>
-            <span className="font-mono text-[10px] text-ink-faint group-hover:text-ink-muted">
-              {formatPhaseLabel(section.phase)}
-            </span>
+            <span className="text-sm font-medium">{section.label}</span>
           </span>
         </Link>
       );

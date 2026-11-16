@@ -26,7 +26,7 @@ export function MobileNav() {
                 : "border-border text-ink-muted"
             )}
           >
-            {section.labelDe}
+            {section.label}
           </Link>
         );
       })}
