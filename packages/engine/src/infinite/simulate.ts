@@ -10,6 +10,7 @@ import {
 } from "./model";
 import { handProfit, type DealerKind, type SettledHand } from "./model";
 import type { CutConfig } from "./presets";
+import { applyToLedger, emptyLedger, settlementFromUnit, type Ledger } from "./settlement";
 
 export interface VisibleState {
   counts: Uint8Array;
@@ -228,7 +229,7 @@ export function consumeShoe(input: {
   cutDealt?: number;
   backgroundCards?: number;
   maxRounds?: number;
-}): { net: number; rounds: number; dealt: number; after5: number | null; after10: number | null } {
+}): { net: number; rounds: number; dealt: number; after5: number | null; after10: number | null; ledger: Ledger } {
   const order = shuffleShoe(input.seed);
   const cut = input.cutDealt ?? 312;
   const background = input.backgroundCards ?? 2;
@@ -237,6 +238,7 @@ export function consumeShoe(input: {
   let rounds = 0;
   let after5: number | null = null;
   let after10: number | null = null;
+  let ledger = emptyLedger(0);
   const draw = () => order[cursor++];
   while (cursor + 4 < order.length && cursor < cut && rounds < (input.maxRounds ?? 1000)) {
     const c1 = draw();
@@ -271,7 +273,7 @@ export function consumeShoe(input: {
             ? { type: "bust" }
             : { type: "total", total };
     const playerTotal = bucketTotal(player);
-    net += handProfit(
+    const unitNet = handProfit(
       {
         total: playerTotal,
         bust: playerTotal > 21,
@@ -282,12 +284,24 @@ export function consumeShoe(input: {
       },
       kind
     );
+    net += unitNet;
+    const cashUnits = 1;
+    ledger = applyToLedger(
+      ledger,
+      settlementFromUnit({
+        shoeId: `sim-${input.seed}`,
+        round: rounds + 1,
+        unitNet,
+        cashUnits,
+        recommendation: "PLAY",
+      })
+    ).ledger;
     for (let i = 0; i < background && cursor < cut && cursor < order.length; i += 1) draw();
     rounds += 1;
     if (rounds === 5) after5 = net;
     if (rounds === 10) after10 = net;
   }
-  return { net, rounds, dealt: cursor, after5, after10 };
+  return { net, rounds, dealt: cursor, after5, after10, ledger };
 }
 
 export function pairRank(card: number): FullRank {

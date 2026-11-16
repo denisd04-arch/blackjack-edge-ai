@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { NAV_SECTIONS } from "@/lib/navigation";
+import { HEADER_NAV } from "@/lib/navigation";
 import { useInfinite } from "@/lib/use-infinite";
 
 export function InfiniteShell({ children }: { children: ReactNode }) {
@@ -31,13 +31,13 @@ export function InfiniteShell({ children }: { children: ReactNode }) {
             NEXT ROUND
           </button>
           <nav aria-label="Secondary" className="flex flex-wrap gap-1">
-            {NAV_SECTIONS.map((item) => (
+            {HEADER_NAV.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`min-h-11 rounded-lg px-3 py-2 text-sm ${path === item.href ? "bg-[#e2c27a] text-[#1a1408]" : "text-[#f6f1e4]/80"}`}
+                className={`min-h-11 rounded-lg px-3 py-2 text-sm font-semibold tracking-wide ${path === item.href ? "bg-[#e2c27a] text-[#1a1408]" : "text-[#f6f1e4]/80"}`}
               >
-                {item.label}
+                {item.label.toUpperCase()}
               </Link>
             ))}
           </nav>

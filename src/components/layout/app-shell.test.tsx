@@ -25,6 +25,9 @@ describe("InfiniteShell", () => {
     expect(screen.getByText("Blackjack Edge AI")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "NEW SHOE" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "NEXT ROUND" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Forward Testing" })).toHaveAttribute("href", "/forward");
+    expect(screen.getByRole("link", { name: "SETTINGS" })).toHaveAttribute("href", "/settings");
+    expect(screen.getByRole("link", { name: "TESTING" })).toHaveAttribute("href", "/testing");
+    expect(screen.getByRole("link", { name: "RULEBOOK" })).toHaveAttribute("href", "/rulebook");
+    expect(screen.queryByRole("link", { name: "Forward Testing" })).not.toBeInTheDocument();
   });
 });

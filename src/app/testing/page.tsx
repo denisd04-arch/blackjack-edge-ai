@@ -1,6 +1,7 @@
 "use client";
 
-import { consumeShoe, settingsSnapshot } from "@blackjack-edge/engine";
+import { applyToLedger, consumeShoe, emptyLedger, lifetimeRollup, settingsSnapshot } from "@blackjack-edge/engine";
+import Link from "next/link";
 import { useState } from "react";
 import { InfiniteShell } from "@/components/infinite/shell";
 import { useInfinite } from "@/lib/use-infinite";
@@ -17,11 +18,13 @@ export default function TestingPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [running, setRunning] = useState(false);
   const [note, setNote] = useState("No batch yet.");
+  const [moneyNote, setMoneyNote] = useState("No simulation ledger yet.");
   const snapshot = settingsSnapshot(settings);
 
   async function run(count: number) {
     setRunning(true);
     const next: Row[] = [];
+    let ledger = emptyLedger(0);
     const background = count > 200 ? 1 : 4;
     for (let i = 0; i < count; i += 1) {
       const seed = 1000 + i;
@@ -33,12 +36,17 @@ export default function TestingPage() {
       });
       const split = i < count * 0.5 ? "train" : i < count * 0.75 ? "validation" : "holdout";
       next.push({ seed, net: result.net, rounds: result.rounds, split });
+      for (const entry of result.ledger.entries) ledger = applyToLedger(ledger, entry).ledger;
       if (i % 5 === 0) {
         setRows([...next]);
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
     }
     setRows(next);
+    const roll = lifetimeRollup(ledger);
+    setMoneyNote(
+      `Simulation ledger net ${roll.roundNet.toFixed(2)} on ${roll.roundCash} player cash. Return ${roll.roundRoi === null ? "not available" : `${(roll.roundRoi * 100).toFixed(2)}%`}. A winning shoe is net profit above zero. This is the same ledger as the live table, and it is not a profitability claim.`
+    );
     const hold = next.filter((r) => r.split === "holdout");
     const holdMean = hold.reduce((s, r) => s + r.net, 0) / Math.max(1, hold.length);
     setNote(
@@ -57,11 +65,19 @@ export default function TestingPage() {
         Manual entry stays on the main shoe. Autoplay and multi-shoe runs use one fixed rules policy, draw real background cards, and stop at the cut. Settings are copied before the run.
       </p>
       <p className="mt-2 font-mono text-xs">Snapshot preset {snapshot.presetId} · paytable {snapshot.paytableId}</p>
+      <p className="mt-4 max-w-2xl text-sm">
+        <Link href="/forward" className="font-semibold text-[#e2c27a] underline">
+          Forward testing
+        </Link>
+        {" "}
+        opens the recommendations frozen before each round on the live shoe. A batch on this page does not rewrite them.
+      </p>
       <div className="mt-4 flex flex-wrap gap-2">
         <button type="button" className="min-h-11 rounded-lg bg-[#e2c27a] px-4 text-[#1a1408]" disabled={running} onClick={() => run(10)}>10 shoes</button>
         <button type="button" className="min-h-11 rounded-lg border border-[#e2c27a] px-4" disabled={running} onClick={() => run(50)}>50 shoes</button>
       </div>
       <p className="mt-3 text-sm">{running ? "Running off the interaction, one shoe at a time." : note}</p>
+      <p className="mt-2 max-w-2xl text-sm">{moneyNote}</p>
       {forecast ? (
         <p className="mt-2 text-sm">
           First shoe net {forecast.net.toFixed(2)} after {forecast.rounds} consumed rounds. Five- and ten-round totals are prefixes of that shoe, not one round multiplied.

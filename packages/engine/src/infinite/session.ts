@@ -1,5 +1,21 @@
-import { cardIndex, FULL_RANKS, freshShoe52, SUITS, type FullRank, type Suit } from "./model";
+import { cardIndex, FULL_RANKS, freshShoe52, SUITS, valueCards, type FullRank, type Suit } from "./model";
 import { DEFAULT_CUT, type CutConfig } from "./presets";
+
+export interface RoundStakes {
+  main: number;
+  anyPair: number;
+  twentyOnePlusThree: number;
+  hot3: number;
+  bustIt: number;
+}
+
+/** What the assistant said, kept apart from what the user actually did. */
+export interface RoundParticipation {
+  round: number;
+  recommendation: string;
+  actual: "PLAYED" | "SKIPPED";
+  stakes: RoundStakes;
+}
 
 export type CardTarget = "shared" | "dealer_up" | "dealer_hole" | "dealer_draw" | "my_hand" | "other";
 
@@ -38,6 +54,13 @@ export interface ShoeSession {
   forcedTarget: CardTarget | null;
   overrides: { round: number; recommended: string; chosen: string }[];
   frozenAdvice: unknown;
+  /** Event ids locked when the user stands. Later cards cannot join this hand. */
+  frozenHandIds: string[] | null;
+  /** Next card resolves the reserved hole. After that, draws go to the dealer. */
+  revealHole: boolean;
+  participation: RoundParticipation | null;
+  /** Null until the user answers for a dealer-22 Bust It. Never assumed. */
+  bustIt22Pays: boolean | null;
   decks: number;
 }
 
@@ -63,7 +86,23 @@ export function createShoe(cut: CutConfig = DEFAULT_CUT, decks = 8): ShoeSession
     forcedTarget: null,
     overrides: [],
     frozenAdvice: null,
+    frozenHandIds: null,
+    revealHole: false,
+    participation: null,
+    bustIt22Pays: null,
     decks,
+  };
+}
+
+export function normalizeSession(input: ShoeSession): ShoeSession {
+  return {
+    ...input,
+    overrides: input.overrides ?? [],
+    redo: input.redo ?? [],
+    frozenHandIds: input.frozenHandIds ?? null,
+    revealHole: input.revealHole ?? false,
+    participation: input.participation ?? null,
+    bustIt22Pays: input.bustIt22Pays ?? null,
   };
 }
 
@@ -129,7 +168,13 @@ export function expectedTarget(session: ShoeSession): CardTarget | null {
   if (shared === 0) return "shared";
   if (!up) return "dealer_up";
   if (shared < 2) return "shared";
-  if (session.phase === "after_stand") return session.forcedTarget ?? "other";
+  if (session.frozenHandIds) {
+    const hole = ev.some((e) => e.target === "dealer_hole");
+    if (!hole) return session.revealHole ? "dealer_hole" : "other";
+    if (dealerFinished(session)) return null;
+    return "dealer_draw";
+  }
+  if (session.phase === "after_stand") return "other";
   return "my_hand";
 }
 
@@ -153,6 +198,12 @@ export function dealCard(
   }
   const chosen = target ?? expectedTarget(session);
   if (!chosen) return { session, error: "No card target." };
+  if (session.frozenHandIds && (chosen === "my_hand" || chosen === "shared")) {
+    return { session, error: "Your hand is frozen." };
+  }
+  if (dealerFinished(session) && (chosen === "dealer_draw" || chosen === "dealer_up" || chosen === "dealer_hole")) {
+    return { session, error: "The dealer has finished." };
+  }
   const event: ShoeEvent = {
     id: nextId(),
     seq: session.events.length + 1,
@@ -182,11 +233,37 @@ export function dealCard(
 
 export function stand(session: ShoeSession): ShoeSession {
   if (session.phase !== "decision") return session;
-  return { ...session, phase: "after_stand" };
+  const ids = myHandEvents(session).map((event) => event.id);
+  if (ids.length < 2) return session;
+  return { ...session, phase: "after_stand", frozenHandIds: ids, revealHole: false };
+}
+
+export function requestHoleReveal(session: ShoeSession): ShoeSession {
+  if (session.phase !== "after_stand" || !session.frozenHandIds) return session;
+  if (session.events.some((event) => event.round === session.round && event.target === "dealer_hole")) return session;
+  return { ...session, revealHole: true };
+}
+
+export function confirmParticipation(session: ShoeSession, input: RoundParticipation): ShoeSession {
+  if (session.participation && session.participation.round === session.round) return session;
+  const stakes = input.actual === "SKIPPED" ? { ...input.stakes, main: 0 } : input.stakes;
+  return {
+    ...session,
+    participation: { ...input, round: session.round, stakes },
+  };
+}
+
+export function answerBustIt22(session: ShoeSession, pays: boolean): ShoeSession {
+  return { ...session, bustIt22Pays: pays };
 }
 
 export function completeRound(session: ShoeSession): ShoeSession {
   return withReport({ ...session, phase: "complete" });
+}
+
+export function markRoundSettled(session: ShoeSession): ShoeSession {
+  if (session.phase === "complete") return session;
+  return completeRound(session);
 }
 
 export function nextRound(session: ShoeSession): { session: ShoeSession; error?: string } {
@@ -205,6 +282,10 @@ export function nextRound(session: ShoeSession): { session: ShoeSession; error?:
       activeHand: 0,
       handCount: 1,
       frozenAdvice: null,
+      frozenHandIds: null,
+      revealHole: false,
+      participation: null,
+      bustIt22Pays: null,
       report: null,
     },
   };
@@ -214,7 +295,7 @@ export function undo(session: ShoeSession): ShoeSession {
   const events = session.events.slice();
   const last = events.pop();
   if (!last) return session;
-  return withReport({ ...session, events, redo: [...session.redo, last], phase: derivePhase(events, session.round) });
+  return withReport({ ...keepFreeze(session, events), redo: [...session.redo, last] });
 }
 
 export function redo(session: ShoeSession): ShoeSession {
@@ -222,15 +303,13 @@ export function redo(session: ShoeSession): ShoeSession {
   const event = redoStack.pop();
   if (!event) return session;
   const events = [...session.events, event];
-  return withReport({ ...session, events, redo: redoStack, phase: derivePhase(events, session.round) });
+  return withReport({ ...keepFreeze(session, events), redo: redoStack });
 }
 
 export function deleteEvent(session: ShoeSession, id: string): ShoeSession {
-  return withReport({
-    ...session,
-    events: session.events.filter((e) => e.id !== id).map((e, i) => ({ ...e, seq: i + 1 })),
-    redo: [],
-  });
+  if (session.frozenHandIds?.includes(id)) return session;
+  const events = session.events.filter((e) => e.id !== id).map((e, i) => ({ ...e, seq: i + 1 }));
+  return withReport({ ...keepFreeze(session, events), redo: [] });
 }
 
 export function editEvent(
@@ -245,6 +324,9 @@ export function editEvent(
   if ((shoe[cardIndex(rank, suit)] ?? 0) <= 0) {
     return { session, error: "That card is no longer in the shoe." };
   }
+  if (session.frozenHandIds?.includes(id)) {
+    return { session, error: "That card is in your frozen hand." };
+  }
   return {
     session: withReport({
       ...session,
@@ -254,8 +336,10 @@ export function editEvent(
   };
 }
 
-/** Moves a card between targets. The shoe removal does not change. */
+/** Moves a card between targets. The shoe removal does not change. A frozen hand stays put. */
 export function retargetEvent(session: ShoeSession, id: string, target: CardTarget): ShoeSession {
+  if (session.frozenHandIds?.includes(id)) return session;
+  if (session.frozenHandIds && (target === "my_hand" || target === "shared")) return session;
   return {
     ...session,
     redo: [],
@@ -285,19 +369,68 @@ function bucketOf(rank: FullRank): number {
   return index >= 9 ? 9 : index;
 }
 
+export function myHandEvents(session: ShoeSession): ShoeEvent[] {
+  const ev = session.events.filter((event) => event.round === session.round);
+  if (session.frozenHandIds && session.frozenHandIds.length > 0) {
+    const byId = new Map(ev.map((event) => [event.id, event]));
+    return session.frozenHandIds.flatMap((id) => {
+      const event = byId.get(id);
+      return event ? [event] : [];
+    });
+  }
+  const shared = ev.filter((event) => event.target === "shared");
+  const split = session.handCount > 1;
+  const base = split ? [shared[session.activeHand] ?? shared[0]!].filter(Boolean) : shared;
+  const extra = ev.filter((event) => event.target === "my_hand" && event.handIndex === session.activeHand);
+  return [...base, ...extra];
+}
+
+export function dealerCards(session: ShoeSession): ShoeEvent[] {
+  const ev = session.events.filter((event) => event.round === session.round);
+  return [
+    ...ev.filter((event) => event.target === "dealer_up"),
+    ...ev.filter((event) => event.target === "dealer_hole"),
+    ...ev.filter((event) => event.target === "dealer_draw"),
+  ];
+}
+
+export function myHandTotal(session: ShoeSession): number | null {
+  const cards = myHandEvents(session).map((event) => bucketOf(event.rank));
+  if (cards.length === 0) return null;
+  return valueCards(cards).total;
+}
+
+/** Dealer stands on soft 17. 22 and bust are finished hands, not a prompt for another card. */
+export function dealerFinished(session: ShoeSession): boolean {
+  const cards = dealerCards(session).map((event) => bucketOf(event.rank));
+  if (cards.length < 2) return false;
+  const value = valueCards(cards);
+  if (cards.length === 2 && value.total === 21) return true;
+  return value.total >= 17;
+}
+
 /** Cards of the active hand plus the dealer upcard, once the opening is complete. */
 export function decisionHand(session: ShoeSession): { cards: number[]; up: number } | null {
   if (session.phase === "deal" || session.phase === "complete") return null;
-  const ev = session.events.filter((e) => e.round === session.round);
-  const shared = ev.filter((e) => e.target === "shared");
-  const up = ev.find((e) => e.target === "dealer_up");
-  if (shared.length < 2 || !up) return null;
-  const split = session.handCount > 1;
-  const base = split ? [shared[session.activeHand] ?? shared[0]!] : shared;
-  const extra = ev.filter((e) => e.target === "my_hand" && e.handIndex === session.activeHand);
+  const hand = myHandEvents(session);
+  const up = session.events.find((event) => event.round === session.round && event.target === "dealer_up");
+  if (hand.length < 2 || !up) return null;
   return {
-    cards: [...base, ...extra].map((e) => bucketOf(e.rank)),
+    cards: hand.map((event) => bucketOf(event.rank)),
     up: bucketOf(up.rank),
+  };
+}
+
+function keepFreeze(session: ShoeSession, events: ShoeEvent[]): ShoeSession {
+  const frozen = session.frozenHandIds;
+  const intact = Boolean(frozen && frozen.length > 0 && frozen.every((id) => events.some((event) => event.id === id)));
+  const hole = events.some((event) => event.round === session.round && event.target === "dealer_hole");
+  return {
+    ...session,
+    events,
+    frozenHandIds: intact ? frozen : null,
+    revealHole: Boolean(intact && session.revealHole && !hole),
+    phase: intact ? "after_stand" : derivePhase(events, session.round),
   };
 }
 
