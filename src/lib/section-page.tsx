@@ -11,5 +11,5 @@ export function renderSectionPage(href: string) {
 export function sectionMetadata(href: string) {
   const section = NAV_SECTIONS.find((s) => s.href === href);
   if (!section) return { title: "Blackjack Edge AI" };
-  return { title: section.labelDe };
+  return { title: section.label };
 }
