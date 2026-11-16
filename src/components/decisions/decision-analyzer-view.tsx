@@ -5,12 +5,10 @@ import clsx from "clsx";
 import {
   CARD_RANKS,
   RANK_LABEL_DE,
-  STANDARD_H17_8DECK_BASELINE,
-  EVOLUTION_FREE_BET_STUB,
   FiniteShoeEvEngine,
   type CardRank,
-  type GameProfile,
 } from "@blackjack-edge/engine";
+import { useGameProfile } from "@/lib/game-profile-context";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -18,18 +16,12 @@ import { DataPanel, DataPanelGrid } from "@/components/ui/data-panel";
 import { LiveDecisionTracker } from "@/components/decisions/live-decision-tracker";
 import { useTableSession } from "@/lib/table-session-context";
 
-const PROFILES: GameProfile[] = [
-  STANDARD_H17_8DECK_BASELINE,
-  EVOLUTION_FREE_BET_STUB,
-];
-
 export function DecisionAnalyzerView() {
   const { snapshot } = useTableSession();
-  const [profileId, setProfileId] = useState(STANDARD_H17_8DECK_BASELINE.id);
+  const { profiles, profileId, setProfileId, profile } = useGameProfile();
   const [playerCards, setPlayerCards] = useState<CardRank[]>([]);
   const [dealerUp, setDealerUp] = useState<CardRank | null>(null);
 
-  const profile = PROFILES.find((p) => p.id === profileId) ?? PROFILES[0];
   const engine = useMemo(() => new FiniteShoeEvEngine(profile), [profile]);
 
   const analysis = useMemo(() => {
@@ -71,7 +63,7 @@ export function DecisionAnalyzerView() {
       <LiveDecisionTracker />
       <Card eyebrow="Profil" title="Regelwerk">
         <div className="flex flex-wrap gap-2">
-          {PROFILES.map((p) => (
+          {profiles.map((p) => (
             <button
               key={p.id}
               type="button"

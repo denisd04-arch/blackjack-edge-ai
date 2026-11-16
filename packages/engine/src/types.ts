@@ -16,6 +16,12 @@ export interface RuleProfileFields {
   freeDoubleOn: readonly ("9" | "10" | "11" | "soft")[] | null;
   pushOn22: boolean | null;
   infiniteFreeActions: boolean | null;
+  /** Six cards ≤21 wins (Infinite Free Bet PDF). null = unverified. */
+  charlieSixCard: boolean | null;
+  /** Max splits per initial hand; null = unverified. */
+  maxSplitsPerHand: number | null;
+  /** Citation keys for verified rule fields (engine audit). */
+  ruleSourceIds?: readonly string[];
 }
 
 export interface GameProfile {

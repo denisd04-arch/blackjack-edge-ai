@@ -11,7 +11,6 @@ import {
   type ReactNode,
 } from "react";
 import {
-  STANDARD_H17_8DECK_BASELINE,
   analyzeDecision,
   buildLogEntry,
   attachActualAction,
@@ -19,6 +18,7 @@ import {
   type DecisionLogEntry,
   type PlayerAction,
 } from "@blackjack-edge/engine";
+import { useGameProfile } from "@/lib/game-profile-context";
 import { useTableSession } from "@/lib/table-session-context";
 
 type DecisionTrackerValue = {
@@ -32,6 +32,7 @@ const DecisionTrackerContext = createContext<DecisionTrackerValue | null>(null);
 let entryCounter = 0;
 
 export function DecisionTrackerProvider({ children }: { children: ReactNode }) {
+  const { profile } = useGameProfile();
   const { snapshot } = useTableSession();
   const [entries, setEntries] = useState<DecisionLogEntry[]>([]);
   const lastKeyRef = useRef<string | null>(null);
@@ -51,7 +52,7 @@ export function DecisionTrackerProvider({ children }: { children: ReactNode }) {
     lastKeyRef.current = key;
 
     const analysis = analyzeDecision({
-      profile: STANDARD_H17_8DECK_BASELINE,
+      profile,
       playerCards: hand.playerCards,
       dealerUpcard: hand.dealerUpcard,
       shoeRemainingByRank: snapshot.shoe.remainingByRank,
@@ -74,6 +75,7 @@ export function DecisionTrackerProvider({ children }: { children: ReactNode }) {
     snapshot.roundId,
     snapshot.roundOpen,
     snapshot.shoe.remainingByRank,
+    profile,
   ]);
 
   useEffect(() => {
@@ -88,7 +90,7 @@ export function DecisionTrackerProvider({ children }: { children: ReactNode }) {
         prev.map((e) => {
           if (e.id !== entryId) return e;
           const analysis = analyzeDecision({
-            profile: STANDARD_H17_8DECK_BASELINE,
+            profile,
             playerCards: e.playerCards,
             dealerUpcard: e.dealerUpcard,
             shoeRemainingByRank: snapshot.shoe.remainingByRank,
@@ -97,7 +99,7 @@ export function DecisionTrackerProvider({ children }: { children: ReactNode }) {
         })
       );
     },
-    [snapshot.shoe.remainingByRank]
+    [profile, snapshot.shoe.remainingByRank]
   );
 
   const clearLog = useCallback(() => {

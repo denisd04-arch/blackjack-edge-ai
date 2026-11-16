@@ -5,9 +5,9 @@ import {
 } from "./profiles";
 
 describe("game profiles", () => {
-  it("marks unknown rule fields as incomplete", () => {
-    expect(EVOLUTION_FREE_BET_STUB.incomplete).toBe(true);
-    expect(EVOLUTION_FREE_BET_STUB.missingFields).toContain("penetration");
+  it("Evolution Free Bet profile complete for finite-shoe EV", () => {
+    expect(EVOLUTION_FREE_BET_STUB.incomplete).toBe(false);
+    expect(EVOLUTION_FREE_BET_STUB.rules.pushOn22).toBe(true);
   });
 
   it("covers both Evolution variants", () => {

@@ -1,5 +1,6 @@
 export * from "./types";
 export * from "./profiles";
+export * from "./profile-registry";
 export * from "./cards";
 export * from "./shoe";
 export * from "./suit-inventory";
@@ -13,6 +14,7 @@ export * from "./decision-log";
 export * from "./ev-core";
 export { FiniteShoeEvEngine } from "./finite-shoe-ev-engine";
 export * from "./evolution/free-bet-rules";
+export * from "./evolution/infinite-table-state";
 export * from "./side-bets";
 export * from "./bankroll";
 export * from "./backtest";

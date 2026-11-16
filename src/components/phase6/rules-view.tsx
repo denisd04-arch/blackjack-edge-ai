@@ -1,22 +1,20 @@
 "use client";
 
-import {
-  EVOLUTION_FREE_BET_STUB,
-  EVOLUTION_INFINITE_FREE_BET_STUB,
-  evolutionRuleReport,
-} from "@blackjack-edge/engine";
+import { evolutionRuleReport } from "@blackjack-edge/engine";
 import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
-
-const PROFILES = [EVOLUTION_FREE_BET_STUB, EVOLUTION_INFINITE_FREE_BET_STUB];
+import { useGameProfile } from "@/lib/game-profile-context";
 
 export function RulesView() {
+  const { profiles } = useGameProfile();
   return (
     <AppShell
       title="Free-Bet-Regeln"
       subtitle="Evolution Varianten — Regelbericht ohne erfundenes EV."
     >
-      {PROFILES.map((p) => {
+      {profiles
+        .filter((p) => p.id.startsWith("evo-"))
+        .map((p) => {
         const report = evolutionRuleReport(p);
         return (
           <Card key={p.id} className="mt-4" title={report.labelDe}>

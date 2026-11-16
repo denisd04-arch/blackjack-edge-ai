@@ -7,16 +7,16 @@ import {
 import { createFullShoeInventory } from "./shoe";
 
 describe("analyzeDecision", () => {
-  it("blocks definitive EV for incomplete Evolution profile", () => {
+  it("returns definitive EV for verified Evolution Free Bet profile", () => {
     const res = analyzeDecision({
       profile: EVOLUTION_FREE_BET_STUB,
       playerCards: ["10", "K"],
       dealerUpcard: "6",
       shoeRemainingByRank: createFullShoeInventory(8),
     });
-    expect(res.definitive).toBe(false);
-    expect(res.messageDe).toMatch(/Unvollständig/);
-    expect(res.actions).toHaveLength(0);
+    expect(res.definitive).toBe(true);
+    expect(res.actions).toHaveLength(4);
+    expect(res.dealer22PushPct).toBeGreaterThanOrEqual(0);
   });
 
   it("returns actions for complete baseline profile", () => {

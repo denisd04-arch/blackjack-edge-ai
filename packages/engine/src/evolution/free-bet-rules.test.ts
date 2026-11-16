@@ -7,10 +7,9 @@ import {
 } from "./free-bet-rules";
 
 describe("free bet rules", () => {
-  it("reports incomplete Evolution profile", () => {
+  it("reports push 22 capability", () => {
     const report = evolutionRuleReport(EVOLUTION_FREE_BET_STUB);
-    expect(report.incomplete).toBe(true);
-    expect(report.missingFields).toContain("penetration");
+    expect(report.capabilities.pushOn22).toBe(true);
   });
 
   it("detects free split on 8s", () => {

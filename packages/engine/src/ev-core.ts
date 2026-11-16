@@ -1,6 +1,7 @@
 import { CARD_RANKS, type CardRank } from "./cards";
 import { evaluateHand, handCacheKey, isPair } from "./hand";
 import type { ResolvedBlackjackRules } from "./blackjack-rules";
+import { freeDoubleEligible } from "./evolution/free-bet-rules";
 import {
   dealerDistributionWithUpcard,
   parseTerminalKey,
@@ -35,14 +36,25 @@ interface PlayContext {
 
 function comparePayoff(
   player: ReturnType<typeof evaluateHand>,
+  playerCards: readonly CardRank[],
   terminalKey: string,
   rules: ResolvedBlackjackRules
 ): number {
   const terminal = parseTerminalKey(terminalKey);
   if (!terminal) return 0;
-  if (terminal.kind === "bust") return 1;
   if (player.bust) return -1;
-  if (player.blackjack && terminal.kind === "stand") return rules.blackjackPayout;
+  if (
+    rules.charlieSixCard &&
+    playerCards.length >= 6 &&
+    !player.bust &&
+    player.total <= 21
+  ) {
+    return 1;
+  }
+  if (terminal.kind === "bust") return 1;
+  if (player.blackjack && terminal.kind === "stand") {
+    return rules.blackjackPayout;
+  }
   if (rules.pushOn22 && terminal.kind === "stand" && terminal.total === 22) {
     return 0;
   }
@@ -80,6 +92,13 @@ function round4(n: number): number {
   return Math.round(n * 10000) / 10000;
 }
 
+/** Free double: one unit at risk; wins pay like a full double, losses cost one unit. */
+function scaleFreeDoubleUnitPayoff(standUnitEv: number): number {
+  if (standUnitEv > 0) return 2 * standUnitEv;
+  if (standUnitEv === 0) return 0;
+  return -1;
+}
+
 export function standOutcomeStats(
   playerCards: readonly CardRank[],
   inventory: RankInventory,
@@ -105,7 +124,10 @@ export function standOutcomeStats(
 
   const payoffs: { payoff: number; prob: number }[] = [];
   for (const [k, prob] of dealer) {
-    payoffs.push({ payoff: comparePayoff(player, k, ctx.rules), prob });
+    payoffs.push({
+      payoff: comparePayoff(player, playerCards, k, ctx.rules),
+      prob,
+    });
   }
   return statsFromDistribution(payoffs);
 }
@@ -226,7 +248,12 @@ function doubleOutcomeStats(
     const nextInv = removeCard(inventory, rank)!;
     const nextHand = [...playerCards, rank];
     const stand = standOutcomeStats(nextHand, nextInv, ctx);
-    payoffs.push({ payoff: 2 * stand.ev, prob: p });
+    const unitPayoff =
+      freeDoubleEligible(playerCards, ctx.rules.freeDoubleOn) &&
+      playerCards.length === 2
+        ? scaleFreeDoubleUnitPayoff(stand.ev)
+        : 2 * stand.ev;
+    payoffs.push({ payoff: unitPayoff, prob: p });
   }
   const base = statsFromDistribution(payoffs);
   return base;

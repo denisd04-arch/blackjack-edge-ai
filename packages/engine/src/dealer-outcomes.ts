@@ -52,7 +52,18 @@ export function dealerDistributionKnownHole(
   const out: PayoffDistribution = new Map();
 
   if (totals.bust) {
-    out.set(terminalKey({ kind: "bust" }), 1);
+    if (rules.pushOn22 && totals.total === 22) {
+      out.set(
+        terminalKey({
+          kind: "stand",
+          total: 22,
+          soft: totals.soft,
+        }),
+        1
+      );
+    } else {
+      out.set(terminalKey({ kind: "bust" }), 1);
+    }
     memo.set(key, out);
     return out;
   }
