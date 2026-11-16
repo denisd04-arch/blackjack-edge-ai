@@ -1,16 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { createDealerMemos, dealerDistribution } from "./dealer";
-import { compositionHandEv, compositionNextRound } from "./composition-ev";
+import { compositionHandEv, compositionNextRound, PRODUCT_ASSUMPTIONS } from "./composition-ev";
+import { analyzeRemaining, MAIN_EV_VERIFICATION } from "./analysis";
 import { evaluateActions, insuranceEv, nextRoundMainEv } from "./ev";
 import { fullKellyFraction, kellyStake } from "./kelly";
 import {
+  bucketsFrom52,
   freshBuckets,
   freshShoe52,
   handProfit,
   playerEdgeFromEv,
   valueCards,
 } from "./model";
-import { freeBetProbabilities } from "./probabilities";
+import { freeBetProbabilities, isOpeningFreeDouble } from "./probabilities";
+import { PRESETS } from "./presets";
 import {
   FRESH_SHOE_HELP_REFERENCE,
   PAYTABLE_ID,
@@ -331,5 +334,73 @@ describe("monte carlo is a separate shuffle", () => {
   });
 });
 
+describe("opening free double", () => {
+  it("rejects an ace, a ten, and a three-card 11", () => {
+    for (let card = 0; card < 10; card += 1) {
+      expect(isOpeningFreeDouble([0, card])).toBe(false);
+      expect(isOpeningFreeDouble([9, card])).toBe(false);
+    }
+    expect(valueCards([1, 2, 5]).hardTotal).toBe(11);
+    expect(isOpeningFreeDouble([1, 2, 5])).toBe(false);
+  });
+
+  it("accepts 2-7, 2-8, 2-9 and fives, and rejects 2-6", () => {
+    expect(isOpeningFreeDouble([1, 6])).toBe(true);
+    expect(isOpeningFreeDouble([1, 7])).toBe(true);
+    expect(isOpeningFreeDouble([1, 8])).toBe(true);
+    expect(isOpeningFreeDouble([1, 5])).toBe(false);
+    expect(isOpeningFreeDouble([4, 4])).toBe(true);
+  });
+
+  it("ignores suit when the rank counts match", () => {
+    const hearts = freshShoe52(8);
+    const spades = freshShoe52(8);
+    hearts[4 * 4 + 0] = (hearts[4 * 4 + 0] ?? 0) - 1;
+    spades[4 * 4 + 3] = (spades[4 * 4 + 3] ?? 0) - 1;
+    const removedHeart = freeBetProbabilities(bucketsFrom52(hearts)).pFreeDouble;
+    const removedSpade = freeBetProbabilities(bucketsFrom52(spades)).pFreeDouble;
+    expect(removedHeart).toBeCloseTo(removedSpade, 12);
+    expect(removedHeart).not.toBeCloseTo(freeBetProbabilities(bucketsFrom52(freshShoe52(8))).pFreeDouble, 8);
+  });
+});
+
+describe("fresh main RTP stays unresolved", () => {
+  it("does not fit 98.45% and does not turn a positive edge into PLAY", () => {
+    const base = compositionNextRound(freshBuckets(8));
+    const limited = compositionNextRound(freshBuckets(8), {
+      ...PRODUCT_ASSUMPTIONS,
+      doubleAfterSplit: false,
+      maxHands: 2,
+    });
+    expect(1 + base.ev).toBeCloseTo(0.99347, 4);
+    expect(1 + base.ev).not.toBeCloseTo(FRESH_SHOE_HELP_REFERENCE.blackjack, 4);
+    expect(1 + limited.ev).toBeCloseTo(0.983751, 4);
+    expect(Math.abs(1 + limited.ev - FRESH_SHOE_HELP_REFERENCE.blackjack)).toBeLessThan(
+      Math.abs(1 + base.ev - FRESH_SHOE_HELP_REFERENCE.blackjack)
+    );
+
+    const shoe = freshShoe52(8);
+    for (let i = 0; i < 20; i += 1) {
+      shoe[1 * 4 + (i % 4)] = (shoe[1 * 4 + (i % 4)] ?? 0) - 1;
+      shoe[9 * 4 + (i % 4)] = (shoe[9 * 4 + (i % 4)] ?? 0) + 1;
+    }
+    const live = analyzeRemaining({
+      shoe52: shoe,
+      physicalRemaining: 416,
+      inventoryValid: true,
+      settings: PRESETS.POSITIVE_EV_ONLY,
+      main: true,
+    });
+    expect(live.playerEdge).toBeGreaterThan(0);
+    expect(live.mainVerification).toBe(MAIN_EV_VERIFICATION);
+    expect(live.recommendation).toBe("NOT_DEFINITIVE");
+    expect(live.kelly.stake).toBe(0);
+
+    const bust = bustItFromShoe(freshShoe52(8));
+    expect(bust.verification).toBe("UNVERIFIED");
+    expect(bust.decision).not.toBe("BET");
+    expect(bust.alternateEv).not.toBe(bust.ev);
+  }, 30_000);
+});
+
 void sideBetsFromShoe;
-void bustItFromShoe;
