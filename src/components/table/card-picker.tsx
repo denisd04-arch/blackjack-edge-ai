@@ -20,9 +20,10 @@ type CardPickerProps = {
   onTargetChange: (target: CardTarget) => void;
   selectedRank: CardRank | null;
   onRankSelect: (rank: CardRank) => void;
+  targets?: readonly CardTarget[];
 };
 
-const TARGETS: CardTarget[] = ["player", "dealer", "other"];
+const DEFAULT_TARGETS: CardTarget[] = ["player", "dealer", "other"];
 
 export function CardPicker({
   disabled,
@@ -31,6 +32,7 @@ export function CardPicker({
   onTargetChange,
   selectedRank,
   onRankSelect,
+  targets = DEFAULT_TARGETS,
 }: CardPickerProps) {
   return (
     <PickerShell>
@@ -39,7 +41,7 @@ export function CardPicker({
           Ziel
         </legend>
         <div className="flex flex-wrap gap-2">
-          {TARGETS.map((t) => (
+          {targets.map((t) => (
             <button
               key={t}
               type="button"

@@ -6,7 +6,8 @@ import {
   analyzeDecision,
   explainDecisionAnalysis,
   liveHandFromDealt,
-  shoeIncludingVisible,
+  observeShoe,
+  shoeForUnseenDecision,
 } from "@blackjack-edge/engine";
 import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
@@ -25,16 +26,39 @@ export function AssistantView() {
       snapshot.participation
     );
     if (!hand.ready || !hand.dealerUpcard) return null;
+    const view =
+      profile.variant === "evolution_infinite_free_bet" ? "infinite" : "free_bet";
+    const observation = observeShoe({
+      decks: snapshot.decks,
+      dealt: snapshot.dealt,
+      remainingByRank: snapshot.shoe.remainingByRank,
+      roundId: snapshot.roundId,
+      view,
+      phase: "your_turn",
+    });
+    if (observation.blocksDecision) {
+      return {
+        titleDe: "INSUFFICIENT DATA",
+        paragraphsDe: ["INSUFFICIENT DATA", observation.messageDe, "Keine Engine-Zahl."],
+      };
+    }
+    const hole =
+      snapshot.dealt.filter(
+        (card) => card.roundId === snapshot.roundId && card.target === "dealer"
+      )[1]?.rank ?? null;
     const analysis = analyzeDecision({
       profile,
       playerCards: hand.playerCards,
       dealerUpcard: hand.dealerUpcard,
-      shoeRemainingByRank: shoeIncludingVisible(snapshot.shoe.remainingByRank, [
-        ...hand.playerCards,
-        hand.dealerUpcard,
-      ]),
+      shoeRemainingByRank: shoeForUnseenDecision({
+        remainingByRank: snapshot.shoe.remainingByRank,
+        playerCards: hand.playerCards,
+        dealerUp: hand.dealerUpcard,
+        holeRank: hole,
+        holeStaysUnknown: true,
+      }),
     });
-    const participation = adviseParticipation(analysis);
+    const participation = adviseParticipation(analysis, profile);
     const explained = explainDecisionAnalysis(analysis, snapshot.counts);
     return {
       ...explained,

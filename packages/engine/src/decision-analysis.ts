@@ -5,6 +5,11 @@ import {
   rulesFromProfile,
   splitRulesUnresolved,
 } from "./blackjack-rules";
+import { playerStakeUnits } from "./bankroll";
+import {
+  freeDoubleEligible,
+  freeSplitEligible,
+} from "./evolution/free-bet-rules";
 import { isEqualValuePair } from "./hand";
 import type { RankInventory } from "./shoe";
 import {
@@ -22,6 +27,10 @@ export interface ActionEvResult extends OutcomeStats {
   action: PlayerAction;
   available: boolean;
   labelDe: string;
+  /** Money the player can lose. The free stake is not included. */
+  playerStakeUnits: number;
+  /** Matched free stake. Never a player loss. */
+  freeStakeUnits: number;
 }
 
 export interface InsuranceQuote {
@@ -138,11 +147,21 @@ export function analyzeDecision(
 
   const actions: ActionEvResult[] = (
     ["stand", "hit", "double", "split"] as const
-  ).map((action) => ({
-    action,
-    labelDe: ACTION_LABEL_DE[action],
-    ...breakdown[action],
-  }));
+  ).map((action) => {
+    const free =
+      (action === "double" &&
+        freeDoubleEligible(input.playerCards, rules.freeDoubleOn)) ||
+      (action === "split" &&
+        freeSplitEligible(input.playerCards, rules.freeSplitOn));
+    const stake = playerStakeUnits(action, free);
+    return {
+      action,
+      labelDe: ACTION_LABEL_DE[action],
+      ...breakdown[action],
+      playerStakeUnits: stake.playerUnits,
+      freeStakeUnits: stake.freeUnits,
+    };
+  });
 
   return {
     definitive: true,

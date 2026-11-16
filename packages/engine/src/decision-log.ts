@@ -22,6 +22,9 @@ export interface DecisionLogEntry {
   recommendedVariance?: number | null;
   /** Worst loss of that action, in original-bet units. */
   recommendedMaxLoss?: number | null;
+  /** Player money at risk. Free stake is not included. */
+  playerStakeUnits?: number | null;
+  freeStakeUnits?: number | null;
 }
 
 const ACTION_LABEL_DE: Record<PlayerAction, string> = {
@@ -66,6 +69,8 @@ export function buildLogEntry(input: {
     actualEv: null,
     recommendedVariance: recommendedRow?.variance ?? null,
     recommendedMaxLoss: recommendedRow?.maxLoss ?? null,
+    playerStakeUnits: recommendedRow?.playerStakeUnits ?? null,
+    freeStakeUnits: recommendedRow?.freeStakeUnits ?? null,
   };
 }
 

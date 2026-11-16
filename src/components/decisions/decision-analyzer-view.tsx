@@ -48,7 +48,7 @@ export function DecisionAnalyzerView() {
     snapshot.shoe.remainingByRank,
   ]);
 
-  const participation = analysis ? adviseParticipation(analysis) : null;
+  const participation = analysis ? adviseParticipation(analysis, profile) : null;
 
   function loadFromTableRound() {
     const roundCards = snapshot.dealt.filter((c) => c.roundId === snapshot.roundId);
@@ -232,6 +232,7 @@ export function DecisionAnalyzerView() {
                   <th className="px-3 py-2">Push</th>
                   <th className="px-3 py-2">Verlust</th>
                   <th className="px-3 py-2">Max. Verlust</th>
+                  <th className="px-3 py-2">Eigener Einsatz</th>
                 </tr>
               </thead>
               <tbody>
@@ -266,6 +267,13 @@ export function DecisionAnalyzerView() {
                     </td>
                     <td className="px-3 py-2 font-mono">
                       {row.available ? row.maxLoss.toFixed(2) : "—"}
+                    </td>
+                    <td className="px-3 py-2 font-mono">
+                      {row.available
+                        ? `${row.playerStakeUnits.toFixed(0)}${
+                            row.freeStakeUnits > 0 ? " + Free" : ""
+                          }`
+                        : "—"}
                     </td>
                   </tr>
                 ))}

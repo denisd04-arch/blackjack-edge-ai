@@ -1,3 +1,32 @@
+import type { PlayerAction } from "./ev-core";
+
+export function playerStakeUnits(
+  action: PlayerAction,
+  free: boolean
+): { playerUnits: number; freeUnits: number; messageDe: string } {
+  const addsStake = action === "double" || action === "split";
+  if (!addsStake) {
+    return {
+      playerUnits: 1,
+      freeUnits: 0,
+      messageDe: "Im Risiko ist nur der eigene Einsatz.",
+    };
+  }
+  if (free) {
+    return {
+      playerUnits: 1,
+      freeUnits: 1,
+      messageDe:
+        "Free Stake ist nicht dein Verlust. Verloren werden kann nur der eigene Einsatz.",
+    };
+  }
+  return {
+    playerUnits: 2,
+    freeUnits: 0,
+    messageDe: "Bezahltes Double oder Split: zwei eigene Einsätze im Risiko.",
+  };
+}
+
 export interface KellyInput {
   /** Per-unit EV (e.g. +0.01). */
   ev: number;

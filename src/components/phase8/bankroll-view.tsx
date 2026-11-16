@@ -40,6 +40,17 @@ export function BankrollView() {
           }
           hint={kelly?.messageDe ?? "Letzte Entscheidung erforderlich"}
         />
+        <DataPanel
+          label="Eigener Einsatz"
+          value={
+            latest?.playerStakeUnits != null ? String(latest.playerStakeUnits) : "—"
+          }
+          hint={
+            latest?.freeStakeUnits
+              ? "Free Stake zählt nicht als Verlust."
+              : "Free Stake ist nicht dein Verlust."
+          }
+        />
       </DataPanelGrid>
       <Card className="mt-4" title="Ledger">
         <ul className="space-y-1 text-sm font-mono text-ink-muted">

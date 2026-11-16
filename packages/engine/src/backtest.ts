@@ -3,7 +3,7 @@ import type { ResolvedBlackjackRules } from "./blackjack-rules";
 import { rulesFromProfile } from "./blackjack-rules";
 import type { DecisionLogEntry } from "./decision-log";
 import { isDeviation } from "./decision-log";
-import { recommendContinuation } from "./decision-analysis";
+import { analyzeDecision, recommendContinuation } from "./decision-analysis";
 import type { PlayerAction } from "./ev-core";
 import { settleUnitProfit } from "./ev-core";
 import {
@@ -69,8 +69,15 @@ export interface ShoeSimulationResult {
   handsPlayed: number;
   totalProfit: number | null;
   meanProfitPerHand: number | null;
+  seed: number;
+  /** Sum of the EV locked when the hand was dealt, before the hole was used. */
+  expectedProfit: number | null;
+  /** Sum of settled player profit. Free stake is not a loss. */
+  realizedProfit: number | null;
   /** A finite model run is never a verified edge. */
   claimsProfit: false;
+  /** There is no profitable label on a short run. */
+  profitableLabel: null;
   definitive: false;
   messageDe: string;
 }
@@ -86,21 +93,17 @@ export function simulateMainBetShoe(input: {
   decks?: number;
   seed: number;
 }): ShoeSimulationResult {
-  const refused: ShoeSimulationResult = {
-    handsPlayed: 0,
-    totalProfit: null,
-    meanProfitPerHand: null,
-    claimsProfit: false,
-    definitive: false,
-    messageDe:
-      "Keine Schuhsimulation — das Profil ist unvollständig oder die Split-Folgeregeln sind nicht belegt. Kein Hausvorteil und kein Profit.",
-  };
+  const refused = unfinished(
+    input.seed,
+    "Keine Schuhsimulation — das Profil ist unvollständig oder die Split-Folgeregeln sind nicht belegt. Kein Hausvorteil und kein Profit."
+  );
   const rules = rulesFromProfile(input.profile);
   if (!rules || input.profile.incomplete || !rules.allowSplit) return refused;
 
   const decks = input.decks ?? rulesFromDecks(input.profile);
   const rest = buildShuffledShoe(decks, input.seed);
   let totalProfit = 0;
+  let expectedProfit = 0;
   let played = 0;
   const target = Math.max(0, Math.floor(input.hands));
 
@@ -111,41 +114,42 @@ export function simulateMainBetShoe(input: {
     const hole = rest.pop();
     if (!p1 || !p2 || !up || !hole) break;
 
+    const rootCards: CardRank[] = [p1, p2];
+    const opening = analyzeDecision({
+      profile: input.profile,
+      playerCards: rootCards,
+      dealerUpcard: up,
+      shoeRemainingByRank: countsOf([...rest, hole, ...rootCards, up]),
+    });
+    const expectedRow = opening.actions.find(
+      (row) => row.action === opening.recommended && row.available
+    );
+    if (!opening.definitive || !opening.recommended || !expectedRow) {
+      return unfinished(
+        input.seed,
+        "Simulation abgebrochen — eine Hand hatte keinen definitiven EV. Teilergebnis ist kein Vorteil."
+      );
+    }
+    expectedProfit += expectedRow.ev;
+
     if (holeMakesBlackjack(up, hole)) {
-      const natural = evaluateHand([p1, p2]).blackjack;
+      const natural = evaluateHand(rootCards).blackjack;
       totalProfit += natural ? 0 : -1;
       played += 1;
       continue;
     }
 
-    const rootCards: CardRank[] = [p1, p2];
-    const opened = recommendContinuation({
-      profile: input.profile,
-      playerCards: rootCards,
-      dealerUpcard: up,
-      shoeIncludingVisible: countsOf([...rest, hole, ...rootCards, up]),
-      fromSplit: false,
-    });
-    if (!opened.definitive || !opened.action) {
-      return {
-        ...refused,
-        messageDe:
-          "Simulation abgebrochen — eine Hand hatte keinen definitiven EV. Teilergebnis ist kein Vorteil.",
-      };
-    }
-
-    if (opened.action === "split" && isEqualValuePair(rootCards)) {
+    if (opening.recommended === "split" && isEqualValuePair(rootCards)) {
       const c1 = rest.pop();
       const c2 = rest.pop();
       if (!c1 || !c2) break;
       const left = playToEnd(input.profile, [p1, c1], up, hole, rest, true);
       const right = playToEnd(input.profile, [p2, c2], up, hole, rest, true);
       if (!left || !right) {
-        return {
-          ...refused,
-          messageDe:
-            "Simulation abgebrochen — Splithand ohne definitive Fortsetzung. Kein Vorteil.",
-        };
+        return unfinished(
+          input.seed,
+          "Simulation abgebrochen — Splithand ohne definitive Fortsetzung. Kein Vorteil."
+        );
       }
       const terminal = dealerTerminal(up, hole, rest, rules);
       let profitLeft = settlePlayed(left, terminal, rules, true);
@@ -165,14 +169,13 @@ export function simulateMainBetShoe(input: {
       hole,
       rest,
       false,
-      opened.action
+      opening.recommended
     );
     if (!finished) {
-      return {
-        ...refused,
-        messageDe:
-          "Simulation abgebrochen — Fortsetzung ohne definitiven EV. Kein Vorteil.",
-      };
+      return unfinished(
+        input.seed,
+        "Simulation abgebrochen — Fortsetzung ohne definitiven EV. Kein Vorteil."
+      );
     }
     if (finished.busted) {
       totalProfit += finished.doubled && !freeDoubleEligible(rootCards, rules.freeDoubleOn)
@@ -188,14 +191,34 @@ export function simulateMainBetShoe(input: {
 
   const mean =
     played === 0 ? null : Math.round((totalProfit / played) * 10000) / 10000;
+  const realized = Math.round(totalProfit * 10000) / 10000;
+  const expected = Math.round(expectedProfit * 10000) / 10000;
   return {
     handsPlayed: played,
-    totalProfit: Math.round(totalProfit * 10000) / 10000,
+    totalProfit: realized,
     meanProfitPerHand: mean,
+    seed: input.seed,
+    expectedProfit: expected,
+    realizedProfit: realized,
     claimsProfit: false,
+    profitableLabel: null,
     definitive: false,
-    messageDe:
-      "Modellsimulation der Hauptwette (Versicherung nicht gesetzt). Kennzahl des Modells — kein belegter Hausvorteil, keine Penetration, kein Profit.",
+    messageDe: `Seed ${input.seed}. Erwartet ${expected}, realisiert ${realized}. Kein belegter Hausvorteil. Kein Profit-Label.`,
+  };
+}
+
+function unfinished(seed: number, messageDe: string): ShoeSimulationResult {
+  return {
+    handsPlayed: 0,
+    totalProfit: null,
+    meanProfitPerHand: null,
+    seed,
+    expectedProfit: null,
+    realizedProfit: null,
+    claimsProfit: false,
+    profitableLabel: null,
+    definitive: false,
+    messageDe,
   };
 }
 

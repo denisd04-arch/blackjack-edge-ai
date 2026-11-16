@@ -16,6 +16,7 @@ export * from "./profile-registry";
 export * from "./evolution/free-bet-rules";
 export * from "./evolution/infinite-table-state";
 export * from "./inventory-integrity";
+export * from "./round-phase";
 export * from "./participation";
 export * from "./side-bets";
 export * from "./bankroll";

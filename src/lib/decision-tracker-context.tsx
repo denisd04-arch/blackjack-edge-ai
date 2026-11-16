@@ -15,7 +15,8 @@ import {
   buildLogEntry,
   attachActualAction,
   liveHandFromDealt,
-  shoeIncludingVisible,
+  observeShoe,
+  shoeForUnseenDecision,
   type DecisionLogEntry,
   type PlayerAction,
 } from "@blackjack-edge/engine";
@@ -50,16 +51,15 @@ export function DecisionTrackerProvider({ children }: { children: ReactNode }) {
     }
     const key = `${profile.id}:${snapshot.roundId}:${hand.playerCards.join(",")}|${hand.dealerUpcard}`;
     if (lastKeyRef.current === key) return;
-    lastKeyRef.current = key;
 
+    const shoe = decisionShoe(snapshot, profile.variant, hand.playerCards, hand.dealerUpcard);
+    if (!shoe) return;
+    lastKeyRef.current = key;
     const analysis = analyzeDecision({
       profile,
       playerCards: hand.playerCards,
       dealerUpcard: hand.dealerUpcard,
-      shoeRemainingByRank: shoeIncludingVisible(snapshot.shoe.remainingByRank, [
-        ...hand.playerCards,
-        hand.dealerUpcard,
-      ]),
+      shoeRemainingByRank: shoe,
     });
 
     entryCounter += 1;
@@ -74,11 +74,7 @@ export function DecisionTrackerProvider({ children }: { children: ReactNode }) {
 
     setEntries((prev) => [...prev, entry]);
   }, [
-    snapshot.dealt,
-    snapshot.participation,
-    snapshot.roundId,
-    snapshot.roundOpen,
-    snapshot.shoe.remainingByRank,
+    snapshot,
     profile,
   ]);
 
@@ -93,20 +89,24 @@ export function DecisionTrackerProvider({ children }: { children: ReactNode }) {
       setEntries((prev) =>
         prev.map((e) => {
           if (e.id !== entryId) return e;
+          const shoe = decisionShoe(
+            snapshot,
+            profile.variant,
+            e.playerCards,
+            e.dealerUpcard
+          );
+          if (!shoe) return e;
           const analysis = analyzeDecision({
             profile,
             playerCards: e.playerCards,
             dealerUpcard: e.dealerUpcard,
-            shoeRemainingByRank: shoeIncludingVisible(
-              snapshot.shoe.remainingByRank,
-              [...e.playerCards, e.dealerUpcard]
-            ),
+            shoeRemainingByRank: shoe,
           });
           return attachActualAction(e, action, analysis);
         })
       );
     },
-    [profile, snapshot.shoe.remainingByRank]
+    [profile, snapshot]
   );
 
   const clearLog = useCallback(() => {
@@ -124,6 +124,46 @@ export function DecisionTrackerProvider({ children }: { children: ReactNode }) {
       {children}
     </DecisionTrackerContext.Provider>
   );
+}
+
+function decisionShoe(
+  snapshot: {
+    decks: number;
+    dealt: readonly {
+      rank: DecisionLogEntry["playerCards"][number];
+      suit: "hearts" | "diamonds" | "clubs" | "spades";
+      target: "dealer" | "player" | "other";
+      roundId: number;
+    }[];
+    roundId: number;
+    shoe: { remainingByRank: Parameters<typeof shoeForUnseenDecision>[0]["remainingByRank"] };
+  },
+  variant: string,
+  playerCards: readonly DecisionLogEntry["playerCards"][number][],
+  dealerUp: DecisionLogEntry["dealerUpcard"]
+) {
+  const view =
+    variant === "evolution_infinite_free_bet" ? "infinite" : "free_bet";
+  const observation = observeShoe({
+    decks: snapshot.decks,
+    dealt: snapshot.dealt,
+    remainingByRank: snapshot.shoe.remainingByRank,
+    roundId: snapshot.roundId,
+    view,
+    phase: "your_turn",
+  });
+  if (observation.blocksDecision) return null;
+  const hole =
+    snapshot.dealt.filter(
+      (card) => card.roundId === snapshot.roundId && card.target === "dealer"
+    )[1]?.rank ?? null;
+  return shoeForUnseenDecision({
+    remainingByRank: snapshot.shoe.remainingByRank,
+    playerCards,
+    dealerUp,
+    holeRank: hole,
+    holeStaysUnknown: true,
+  });
 }
 
 export function useDecisionTracker(): DecisionTrackerValue {

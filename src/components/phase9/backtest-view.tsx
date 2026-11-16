@@ -64,10 +64,16 @@ export function BacktestView() {
           Modell laufen lassen
         </Button>
         {sim ? (
-          <p className="mt-3 text-sm text-ink-muted">
-            {sim.messageDe} Hände: {sim.handsPlayed}. Mittel pro Hand:{" "}
-            {sim.meanProfitPerHand == null ? "—" : sim.meanProfitPerHand.toFixed(4)}.
-          </p>
+          <div className="mt-3 space-y-1 text-sm text-ink-muted">
+            <p>{sim.messageDe}</p>
+            <p>Seed {sim.seed}. Kein Vorteil aus diesem Lauf.</p>
+            <p>
+              Erwartet{" "}
+              {sim.expectedProfit == null ? "—" : sim.expectedProfit.toFixed(4)} ·
+              realisiert{" "}
+              {sim.realizedProfit == null ? "—" : sim.realizedProfit.toFixed(4)}.
+            </p>
+          </div>
         ) : null}
       </Card>
     </AppShell>

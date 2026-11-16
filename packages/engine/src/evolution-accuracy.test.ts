@@ -1,8 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { kellyOnNet } from "./bankroll";
+import { kellyOnNet, playerStakeUnits } from "./bankroll";
 import { simulateMainBetShoe } from "./backtest";
 import { rulesFromProfile } from "./blackjack-rules";
 import { adviseParticipation } from "./participation";
+import {
+  compareForwardResult,
+  forwardTestProjection,
+  lockFromRecord,
+} from "./forward-test";
+import {
+  inventoryMatchesDealt,
+  observeShoe,
+  shoeForUnseenDecision,
+} from "./inventory-integrity";
+import {
+  closeDeal,
+  freshRound,
+  setActiveSeat,
+  toDealer,
+} from "./round-phase";
 import { analyzeDecision } from "./decision-analysis";
 import type { DecisionAnalysisResult } from "./decision-analysis";
 import { dealerDistributionWithUpcard } from "./dealer-outcomes";
@@ -11,8 +27,6 @@ import {
   dealerBlackjackProbability,
   settleUnitProfit,
 } from "./ev-core";
-import { forwardTestProjection } from "./forward-test";
-import { inventoryMatchesDealt } from "./inventory-integrity";
 import {
   EVOLUTION_FREE_BET,
   EVOLUTION_INFINITE_FREE_BET,
@@ -147,8 +161,13 @@ describe("honesty gates", () => {
       seed: 7,
     });
     expect(sim.claimsProfit).toBe(false);
+    expect(sim.profitableLabel).toBeNull();
     expect(sim.definitive).toBe(false);
+    expect(sim.seed).toBe(7);
+    expect(sim.expectedProfit).not.toBeNull();
+    expect(sim.realizedProfit).not.toBeNull();
     expect(sim.messageDe).toMatch(/kein belegter Hausvorteil/i);
+    expect(sim.messageDe.toLowerCase()).not.toMatch(/profitabel/);
     expect(sim.handsPlayed).toBe(1);
   });
 
@@ -204,49 +223,152 @@ describe("honesty gates", () => {
 });
 
 describe("participation", () => {
-  it("sits out when conditional EV is not positive", () => {
-    const analysis = {
-      definitive: true,
-      messageDe: "x",
-      rulesLabelDe: "t",
-      recommended: "stand",
-      dealerBustPct: 0,
-      dealer22PushPct: 0,
-      insurance: {
-        offered: false,
-        definitive: false,
-        dealerBlackjackPct: null,
-        evPerInsuranceUnit: null,
-        messageDe: "",
+  const analysis = {
+    definitive: true,
+    messageDe: "x",
+    rulesLabelDe: "t",
+    recommended: "stand",
+    dealerBustPct: 0,
+    dealer22PushPct: 0,
+    insurance: {
+      offered: false,
+      definitive: false,
+      dealerBlackjackPct: null,
+      evPerInsuranceUnit: null,
+      messageDe: "",
+    },
+    actions: [
+      {
+        action: "stand",
+        labelDe: "Stehen",
+        ev: -0.2,
+        variance: 1,
+        winPct: 40,
+        pushPct: 0,
+        lossPct: 60,
+        maxLoss: 1,
+        playerStakeUnits: 1,
+        freeStakeUnits: 0,
+        available: true,
       },
-      actions: [
-        {
-          action: "stand",
-          labelDe: "Stehen",
-          ev: -0.2,
-          variance: 1,
-          winPct: 40,
-          pushPct: 0,
-          lossPct: 60,
-          maxLoss: 1,
-          available: true,
-        },
-      ],
-    } as DecisionAnalysisResult;
-    const advice = adviseParticipation(analysis);
-    expect(advice.definitive).toBe(true);
+    ],
+  } as DecisionAnalysisResult;
+
+  it("sits out only when Infinite EV was computed", () => {
+    const advice = adviseParticipation(analysis, EVOLUTION_INFINITE_FREE_BET);
+    expect(advice.code).toBe("COMPUTED");
     expect(advice.participate).toBe(false);
-    expect(advice.messageDe).toMatch(/kein Hinweis/i);
   });
 
-  it("does not advise on an open profile hand", () => {
-    const res = analyzeDecision({
-      profile: EVOLUTION_FREE_BET,
-      playerCards: ["9", "9"],
-      dealerUpcard: "6",
-      shoeRemainingByRank: createFullShoeInventory(1),
+  it("returns INSUFFICIENT DATA unless the profile is verified", () => {
+    expect(adviseParticipation(analysis, EVOLUTION_FREE_BET).code).toBe(
+      "INSUFFICIENT_DATA"
+    );
+    expect(
+      adviseParticipation(analysis, STANDARD_H17_8DECK_BASELINE).code
+    ).toBe("INSUFFICIENT_DATA");
+    expect(adviseParticipation(analysis, EVOLUTION_FREE_BET).participate).toBe(
+      null
+    );
+  });
+});
+
+describe("table honesty", () => {
+  it("separates your turn from another seat and keeps the hole unknown", () => {
+    const seated = closeDeal(freshRound("free_bet"));
+    expect(setActiveSeat(seated, 3).phase).toBe("other_player");
+    expect(setActiveSeat(seated, 1).phase).toBe("your_turn");
+    expect(closeDeal(freshRound("infinite")).phase).toBe("your_turn");
+
+    const session = new DigitalTableSession({ decks: 1 });
+    session.startRound();
+    session.dealCard("10", "spades", "player");
+    session.dealCard("9", "hearts", "player");
+    session.dealCard("6", "clubs", "dealer");
+    session.dealCard("5", "diamonds", "dealer");
+    const snap = session.snapshot();
+    const early = observeShoe({
+      decks: 1,
+      dealt: snap.dealt,
+      remainingByRank: snap.shoe.remainingByRank,
+      roundId: snap.roundId,
+      view: "free_bet",
+      phase: "your_turn",
     });
-    expect(adviseParticipation(res).participate).toBeNull();
+    expect(early.status).toBe("LIMITED");
+    expect(early.holeStaysUnknown).toBe(true);
+    expect(early.blocksDecision).toBe(false);
+    const unseen = shoeForUnseenDecision({
+      remainingByRank: snap.shoe.remainingByRank,
+      playerCards: ["10", "9"],
+      dealerUp: "6",
+      holeRank: early.holeRank,
+      holeStaysUnknown: true,
+    });
+    expect(unseen["5"]).toBe(snap.shoe.remainingByRank["5"] + 1);
+
+    const revealed = observeShoe({
+      ...{
+        decks: 1,
+        dealt: snap.dealt,
+        remainingByRank: snap.shoe.remainingByRank,
+        roundId: snap.roundId,
+        view: "free_bet" as const,
+      },
+      phase: toDealer(freshRound("free_bet")).phase,
+    });
+    expect(revealed.holeStaysUnknown).toBe(false);
+  });
+
+  it("marks an Infinite extra seat as a double count", () => {
+    const session = new DigitalTableSession({ decks: 1 });
+    session.startRound();
+    session.dealCard("8", "spades", "player");
+    session.dealCard("8", "hearts", "player");
+    session.dealCard("6", "clubs", "dealer");
+    session.dealCard("2", "diamonds", "other");
+    const snap = session.snapshot();
+    const observed = observeShoe({
+      decks: 1,
+      dealt: snap.dealt,
+      remainingByRank: snap.shoe.remainingByRank,
+      roundId: snap.roundId,
+      view: "infinite",
+      phase: "your_turn",
+    });
+    expect(observed.status).toBe("LIMITED");
+    expect(observed.blocksDecision).toBe(true);
+    expect(observed.messageDe).toMatch(/Doppelzählung/);
+  });
+
+  it("locks a forward recommendation before the result", () => {
+    const lock = lockFromRecord({
+      profile: EVOLUTION_INFINITE_FREE_BET,
+      recommended: "stand",
+      expectedEv: 0.12,
+      definitive: true,
+    });
+    const later = compareForwardResult(lock, -1);
+    expect(lock.status).toBe("LOCKED");
+    expect(later.recommendation).toBe("stand");
+    expect(later.expectedEv).toBe(0.12);
+    expect(later.realizedProfit).toBe(-1);
+    expect(later.claimsProfit).toBe(false);
+    expect(
+      lockFromRecord({
+        profile: EVOLUTION_FREE_BET,
+        recommended: "hit",
+        expectedEv: 0.1,
+        definitive: true,
+      }).status
+    ).toBe("INSUFFICIENT_DATA");
+  });
+
+  it("does not treat the free stake as the player's loss", () => {
+    const free = playerStakeUnits("double", true);
+    expect(free.playerUnits).toBe(1);
+    expect(free.freeUnits).toBe(1);
+    expect(playerStakeUnits("split", false).playerUnits).toBe(2);
   });
 });
 

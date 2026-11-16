@@ -26,6 +26,8 @@ const mockAnalysis: DecisionAnalysisResult = {
       pushPct: 5,
       lossPct: 45,
       maxLoss: 1,
+      playerStakeUnits: 1,
+      freeStakeUnits: 0,
       available: true,
     },
     {
@@ -37,6 +39,8 @@ const mockAnalysis: DecisionAnalysisResult = {
       pushPct: 5,
       lossPct: 55,
       maxLoss: 1,
+      playerStakeUnits: 1,
+      freeStakeUnits: 0,
       available: true,
     },
     {
@@ -48,6 +52,8 @@ const mockAnalysis: DecisionAnalysisResult = {
       pushPct: 0,
       lossPct: 0,
       maxLoss: 0,
+      playerStakeUnits: 2,
+      freeStakeUnits: 0,
       available: false,
     },
     {
@@ -59,6 +65,8 @@ const mockAnalysis: DecisionAnalysisResult = {
       pushPct: 0,
       lossPct: 0,
       maxLoss: 0,
+      playerStakeUnits: 2,
+      freeStakeUnits: 0,
       available: false,
     },
   ],
