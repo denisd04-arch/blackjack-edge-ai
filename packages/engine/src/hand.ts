@@ -40,10 +40,29 @@ export function evaluateHand(cards: readonly CardRank[]): HandTotals {
   };
 }
 
+export function isTenValue(rank: CardRank): boolean {
+  return rank === "10" || rank === "J" || rank === "Q" || rank === "K";
+}
+
 export function isPair(cards: readonly CardRank[]): boolean {
   return (
     cards.length === 2 && cards[0] === cards[1] && cards[0] !== undefined
   );
+}
+
+/** Evolution splits cards of equal value, including 10/J/Q/K with each other. */
+export function isEqualValuePair(cards: readonly CardRank[]): boolean {
+  if (cards.length !== 2 || cards[0] === undefined || cards[1] === undefined) {
+    return false;
+  }
+  if (cards[0] === cards[1]) return true;
+  return isTenValue(cards[0]) && isTenValue(cards[1]);
+}
+
+export function holeMakesBlackjack(up: CardRank, hole: CardRank): boolean {
+  if (up === "A") return isTenValue(hole);
+  if (isTenValue(up)) return hole === "A";
+  return false;
 }
 
 export function handCacheKey(cards: readonly CardRank[]): string {

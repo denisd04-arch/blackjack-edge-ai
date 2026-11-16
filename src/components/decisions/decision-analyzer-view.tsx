@@ -5,41 +5,50 @@ import clsx from "clsx";
 import {
   CARD_RANKS,
   RANK_LABEL_DE,
-  STANDARD_H17_8DECK_BASELINE,
-  EVOLUTION_FREE_BET_STUB,
+  adviseParticipation,
+  shoeIncludingVisible,
   FiniteShoeEvEngine,
   type CardRank,
-  type GameProfile,
 } from "@blackjack-edge/engine";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DataPanel, DataPanelGrid } from "@/components/ui/data-panel";
 import { LiveDecisionTracker } from "@/components/decisions/live-decision-tracker";
+import { useGameProfile } from "@/lib/game-profile-context";
 import { useTableSession } from "@/lib/table-session-context";
-
-const PROFILES: GameProfile[] = [
-  STANDARD_H17_8DECK_BASELINE,
-  EVOLUTION_FREE_BET_STUB,
-];
 
 export function DecisionAnalyzerView() {
   const { snapshot } = useTableSession();
-  const [profileId, setProfileId] = useState(STANDARD_H17_8DECK_BASELINE.id);
+  const { profile, profileId, setProfileId, profiles } = useGameProfile();
   const [playerCards, setPlayerCards] = useState<CardRank[]>([]);
   const [dealerUp, setDealerUp] = useState<CardRank | null>(null);
+  const [restoreVisible, setRestoreVisible] = useState(false);
 
-  const profile = PROFILES.find((p) => p.id === profileId) ?? PROFILES[0];
   const engine = useMemo(() => new FiniteShoeEvEngine(profile), [profile]);
 
   const analysis = useMemo(() => {
     if (!dealerUp || playerCards.length < 2) return null;
+    const shoe = restoreVisible
+      ? shoeIncludingVisible(snapshot.shoe.remainingByRank, [
+          ...playerCards,
+          dealerUp,
+        ])
+      : snapshot.shoe.remainingByRank;
     return engine.analyze({
       playerCards,
       dealerUpcard: dealerUp,
-      shoeRemainingByRank: snapshot.shoe.remainingByRank,
+      shoeRemainingByRank: shoe,
     });
-  }, [dealerUp, engine, playerCards, snapshot.shoe.remainingByRank]);
+  }, [
+    dealerUp,
+    engine,
+    playerCards,
+    restoreVisible,
+    snapshot.shoe.remainingByRank,
+  ]);
+
+  const participation = analysis ? adviseParticipation(analysis) : null;
 
   function loadFromTableRound() {
     const roundCards = snapshot.dealt.filter((c) => c.roundId === snapshot.roundId);
@@ -50,16 +59,19 @@ export function DecisionAnalyzerView() {
       .filter((c) => c.target === "dealer")
       .map((c) => c.rank);
     if (player.length >= 2 && dealer.length >= 1) {
-      setPlayerCards(player.slice(0, 5));
+      setPlayerCards(player.slice(0, 8));
       setDealerUp(dealer[0]);
+      setRestoreVisible(true);
     }
   }
 
   function addPlayerRank(rank: CardRank) {
-    setPlayerCards((prev) => (prev.length >= 5 ? prev : [...prev, rank]));
+    setRestoreVisible(false);
+    setPlayerCards((prev) => (prev.length >= 8 ? prev : [...prev, rank]));
   }
 
   function removePlayerAt(index: number) {
+    setRestoreVisible(false);
     setPlayerCards((prev) => prev.filter((_, i) => i !== index));
   }
 
@@ -71,7 +83,7 @@ export function DecisionAnalyzerView() {
       <LiveDecisionTracker />
       <Card eyebrow="Profil" title="Regelwerk">
         <div className="flex flex-wrap gap-2">
-          {PROFILES.map((p) => (
+          {profiles.map((p) => (
             <button
               key={p.id}
               type="button"
@@ -89,9 +101,15 @@ export function DecisionAnalyzerView() {
         </div>
         {profile.incomplete ? (
           <p className="mt-3 text-sm text-warning">
-            Unvollständiges Profil — kein definitiver EV.
+            Offene Felder: {profile.missingFields.join(", ")}. Hände, die davon
+            abhängen, bekommen keine Empfehlung.
           </p>
-        ) : null}
+        ) : (
+          <p className="mt-3 text-sm text-ink-muted">
+            Profil ist für bedingten Schuh-EV geschlossen. Das ist kein
+            Hausvorteil.
+          </p>
+        )}
         <Button className="mt-3" variant="secondary" onClick={loadFromTableRound}>
           Aus aktueller Runde übernehmen
         </Button>
@@ -169,6 +187,20 @@ export function DecisionAnalyzerView() {
         </p>
       ) : null}
 
+      {participation ? (
+        <p className="mt-4 text-sm text-ink-muted">{participation.messageDe}</p>
+      ) : null}
+
+      {analysis?.insurance.offered ? (
+        <p className="mt-2 text-sm text-ink-muted">
+          {analysis.insurance.messageDe}{" "}
+          {analysis.insurance.definitive &&
+          analysis.insurance.evPerInsuranceUnit != null
+            ? `EV je Versicherungseinheit ${analysis.insurance.evPerInsuranceUnit.toFixed(4)}.`
+            : null}
+        </p>
+      ) : null}
+
       {analysis && analysis.definitive ? (
         <div className="mt-6 space-y-4">
           <p className="text-sm text-ink-muted">{analysis.messageDe}</p>
@@ -199,6 +231,7 @@ export function DecisionAnalyzerView() {
                   <th className="px-3 py-2">Gewinn</th>
                   <th className="px-3 py-2">Push</th>
                   <th className="px-3 py-2">Verlust</th>
+                  <th className="px-3 py-2">Max. Verlust</th>
                 </tr>
               </thead>
               <tbody>
@@ -230,6 +263,9 @@ export function DecisionAnalyzerView() {
                     </td>
                     <td className="px-3 py-2 font-mono">
                       {row.available ? `${row.lossPct.toFixed(1)}%` : "—"}
+                    </td>
+                    <td className="px-3 py-2 font-mono">
+                      {row.available ? row.maxLoss.toFixed(2) : "—"}
                     </td>
                   </tr>
                 ))}

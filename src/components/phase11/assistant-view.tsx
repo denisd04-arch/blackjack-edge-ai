@@ -2,17 +2,20 @@
 
 import { useMemo } from "react";
 import {
-  STANDARD_H17_8DECK_BASELINE,
+  adviseParticipation,
   analyzeDecision,
   explainDecisionAnalysis,
   liveHandFromDealt,
+  shoeIncludingVisible,
 } from "@blackjack-edge/engine";
 import { AppShell } from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
+import { useGameProfile } from "@/lib/game-profile-context";
 import { useTableSession } from "@/lib/table-session-context";
 
 export function AssistantView() {
   const { snapshot } = useTableSession();
+  const { profile } = useGameProfile();
 
   const explanation = useMemo(() => {
     const hand = liveHandFromDealt(
@@ -23,13 +26,25 @@ export function AssistantView() {
     );
     if (!hand.ready || !hand.dealerUpcard) return null;
     const analysis = analyzeDecision({
-      profile: STANDARD_H17_8DECK_BASELINE,
+      profile,
       playerCards: hand.playerCards,
       dealerUpcard: hand.dealerUpcard,
-      shoeRemainingByRank: snapshot.shoe.remainingByRank,
+      shoeRemainingByRank: shoeIncludingVisible(snapshot.shoe.remainingByRank, [
+        ...hand.playerCards,
+        hand.dealerUpcard,
+      ]),
     });
-    return explainDecisionAnalysis(analysis, snapshot.counts);
-  }, [snapshot]);
+    const participation = adviseParticipation(analysis);
+    const explained = explainDecisionAnalysis(analysis, snapshot.counts);
+    return {
+      ...explained,
+      paragraphsDe: [
+        `Profil: ${profile.labelDe}.`,
+        participation.messageDe,
+        ...explained.paragraphsDe,
+      ],
+    };
+  }, [profile, snapshot]);
 
   return (
     <AppShell

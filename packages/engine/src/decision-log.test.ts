@@ -9,6 +9,13 @@ const mockAnalysis: DecisionAnalysisResult = {
   recommended: "stand",
   dealerBustPct: 20,
   dealer22PushPct: 0,
+  insurance: {
+    offered: false,
+    definitive: false,
+    dealerBlackjackPct: null,
+    evPerInsuranceUnit: null,
+    messageDe: "keine",
+  },
   actions: [
     {
       action: "stand",
@@ -18,6 +25,7 @@ const mockAnalysis: DecisionAnalysisResult = {
       winPct: 50,
       pushPct: 5,
       lossPct: 45,
+      maxLoss: 1,
       available: true,
     },
     {
@@ -28,6 +36,7 @@ const mockAnalysis: DecisionAnalysisResult = {
       winPct: 40,
       pushPct: 5,
       lossPct: 55,
+      maxLoss: 1,
       available: true,
     },
     {
@@ -38,6 +47,7 @@ const mockAnalysis: DecisionAnalysisResult = {
       winPct: 0,
       pushPct: 0,
       lossPct: 0,
+      maxLoss: 0,
       available: false,
     },
     {
@@ -48,6 +58,7 @@ const mockAnalysis: DecisionAnalysisResult = {
       winPct: 0,
       pushPct: 0,
       lossPct: 0,
+      maxLoss: 0,
       available: false,
     },
   ],

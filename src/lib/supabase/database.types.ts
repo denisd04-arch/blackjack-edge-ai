@@ -126,6 +126,8 @@ export type Database = {
       decisions: {
         Row: {
           action: string
+          amount_at_risk: number | null
+          definitive: boolean | null
           ev_best: number | null
           ev_by_action: Json | null
           hand_id: string
@@ -135,6 +137,8 @@ export type Database = {
         }
         Insert: {
           action: string
+          amount_at_risk?: number | null
+          definitive?: boolean | null
           ev_best?: number | null
           ev_by_action?: Json | null
           hand_id: string
@@ -144,6 +148,8 @@ export type Database = {
         }
         Update: {
           action?: string
+          amount_at_risk?: number | null
+          definitive?: boolean | null
           ev_best?: number | null
           ev_by_action?: Json | null
           hand_id?: string

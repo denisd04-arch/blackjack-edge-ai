@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { kellyFraction } from "@blackjack-edge/engine";
+import { kellyOnNet } from "@blackjack-edge/engine";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,8 +15,16 @@ export function BankrollView() {
   const latest = decisions[decisions.length - 1];
 
   const kelly = useMemo(() => {
-    if (!latest?.recommendedEv || !latest.definitive) return null;
-    return kellyFraction({ ev: latest.recommendedEv, variance: 1.1 });
+    if (!latest?.definitive || latest.recommendedEv == null) return null;
+    if (latest.recommendedVariance == null || latest.recommendedMaxLoss == null) {
+      return null;
+    }
+    return kellyOnNet({
+      ev: latest.recommendedEv,
+      variance: latest.recommendedVariance,
+      maxLoss: latest.recommendedMaxLoss,
+      definitive: true,
+    });
   }, [latest]);
 
   const balance = entries[entries.length - 1]?.balanceAfter ?? 0;

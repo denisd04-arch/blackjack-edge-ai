@@ -11,14 +11,15 @@ import {
   type ReactNode,
 } from "react";
 import {
-  STANDARD_H17_8DECK_BASELINE,
   analyzeDecision,
   buildLogEntry,
   attachActualAction,
   liveHandFromDealt,
+  shoeIncludingVisible,
   type DecisionLogEntry,
   type PlayerAction,
 } from "@blackjack-edge/engine";
+import { useGameProfile } from "@/lib/game-profile-context";
 import { useTableSession } from "@/lib/table-session-context";
 
 type DecisionTrackerValue = {
@@ -33,6 +34,7 @@ let entryCounter = 0;
 
 export function DecisionTrackerProvider({ children }: { children: ReactNode }) {
   const { snapshot } = useTableSession();
+  const { profile } = useGameProfile();
   const [entries, setEntries] = useState<DecisionLogEntry[]>([]);
   const lastKeyRef = useRef<string | null>(null);
 
@@ -46,15 +48,18 @@ export function DecisionTrackerProvider({ children }: { children: ReactNode }) {
     if (!hand.ready || !hand.dealerUpcard) {
       return;
     }
-    const key = `${snapshot.roundId}:${hand.playerCards.join(",")}|${hand.dealerUpcard}`;
+    const key = `${profile.id}:${snapshot.roundId}:${hand.playerCards.join(",")}|${hand.dealerUpcard}`;
     if (lastKeyRef.current === key) return;
     lastKeyRef.current = key;
 
     const analysis = analyzeDecision({
-      profile: STANDARD_H17_8DECK_BASELINE,
+      profile,
       playerCards: hand.playerCards,
       dealerUpcard: hand.dealerUpcard,
-      shoeRemainingByRank: snapshot.shoe.remainingByRank,
+      shoeRemainingByRank: shoeIncludingVisible(snapshot.shoe.remainingByRank, [
+        ...hand.playerCards,
+        hand.dealerUpcard,
+      ]),
     });
 
     entryCounter += 1;
@@ -74,6 +79,7 @@ export function DecisionTrackerProvider({ children }: { children: ReactNode }) {
     snapshot.roundId,
     snapshot.roundOpen,
     snapshot.shoe.remainingByRank,
+    profile,
   ]);
 
   useEffect(() => {
@@ -88,16 +94,19 @@ export function DecisionTrackerProvider({ children }: { children: ReactNode }) {
         prev.map((e) => {
           if (e.id !== entryId) return e;
           const analysis = analyzeDecision({
-            profile: STANDARD_H17_8DECK_BASELINE,
+            profile,
             playerCards: e.playerCards,
             dealerUpcard: e.dealerUpcard,
-            shoeRemainingByRank: snapshot.shoe.remainingByRank,
+            shoeRemainingByRank: shoeIncludingVisible(
+              snapshot.shoe.remainingByRank,
+              [...e.playerCards, e.dealerUpcard]
+            ),
           });
           return attachActualAction(e, action, analysis);
         })
       );
     },
-    [snapshot.shoe.remainingByRank]
+    [profile, snapshot.shoe.remainingByRank]
   );
 
   const clearLog = useCallback(() => {

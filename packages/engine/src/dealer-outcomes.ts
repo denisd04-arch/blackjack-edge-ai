@@ -11,12 +11,14 @@ import type { RankInventory } from "./shoe";
 
 export type DealerTerminal =
   | { kind: "bust" }
+  | { kind: "blackjack" }
   | { kind: "stand"; total: number; soft: boolean };
 
 export type PayoffDistribution = Map<string, number>;
 
 function terminalKey(t: DealerTerminal): string {
   if (t.kind === "bust") return "bust";
+  if (t.kind === "blackjack") return "bj";
   return `s:${t.total}:${t.soft ? 1 : 0}`;
 }
 
@@ -52,7 +54,20 @@ export function dealerDistributionKnownHole(
   const out: PayoffDistribution = new Map();
 
   if (totals.bust) {
-    out.set(terminalKey({ kind: "bust" }), 1);
+    if (rules.pushOn22 && totals.total === 22) {
+      out.set(
+        terminalKey({ kind: "stand", total: 22, soft: false }),
+        1
+      );
+    } else {
+      out.set(terminalKey({ kind: "bust" }), 1);
+    }
+    memo.set(key, out);
+    return out;
+  }
+
+  if (dealerCards.length === 2 && totals.blackjack) {
+    out.set(terminalKey({ kind: "blackjack" }), 1);
     memo.set(key, out);
     return out;
   }
@@ -103,15 +118,19 @@ export function dealerDistributionKnownHole(
   return out;
 }
 
-/** Hole card unknown: mixture over each possible hole. */
+/**
+ * Hole card unknown.
+ * `inventory` is the unseen shoe with the dealer upcard already removed
+ * (the same inventory `analysisInventory` returns). The upcard is not removed again.
+ */
 export function dealerDistributionWithUpcard(
   upcard: CardRank,
   inventory: RankInventory,
   rules: ResolvedBlackjackRules,
   memo: Map<string, PayoffDistribution>
 ): { dealer: PayoffDistribution; bustPct: number; push22Pct: number } {
-  const inv = removeCard(inventory, upcard);
-  if (!inv) {
+  const inv = inventory;
+  if (inventoryTotal(inv) <= 0) {
     return { dealer: new Map(), bustPct: 0, push22Pct: 0 };
   }
 
@@ -143,6 +162,7 @@ export function dealerDistributionWithUpcard(
 
 export function parseTerminalKey(key: string): DealerTerminal | null {
   if (key === "bust") return { kind: "bust" };
+  if (key === "bj") return { kind: "blackjack" };
   const m = /^s:(\d+):([01])$/.exec(key);
   if (!m) return null;
   return {

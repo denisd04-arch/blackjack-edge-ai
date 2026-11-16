@@ -3,7 +3,12 @@
 import { useState } from "react";
 import clsx from "clsx";
 import type { CardRank, CardTarget } from "@blackjack-edge/engine";
-import { StubBlackjackMathEngine, EVOLUTION_FREE_BET_STUB } from "@blackjack-edge/engine";
+import {
+  infiniteSharedHandLabelDe,
+  infiniteStateFromDealt,
+  inventoryMatchesDealt,
+} from "@blackjack-edge/engine";
+import { useGameProfile } from "@/lib/game-profile-context";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,16 +20,27 @@ import { CountSummary } from "@/components/counting/count-summary";
 
 export function DigitalTable() {
   const { snapshot, lastError, actions, clearError } = useTableSession();
+  const { profile } = useGameProfile();
   const [target, setTarget] = useState<CardTarget>("player");
   const [selectedRank, setSelectedRank] = useState<CardRank | null>(null);
-  const engineNote = new StubBlackjackMathEngine(EVOLUTION_FREE_BET_STUB).health()
-    .messageDe;
   const inputDisabled = !snapshot.roundOpen;
+  const integrity = inventoryMatchesDealt({
+    decks: snapshot.decks,
+    dealtRanks: snapshot.dealt.map((c) => c.rank),
+    remainingByRank: snapshot.shoe.remainingByRank,
+  });
+  const infinite = infiniteStateFromDealt({
+    variant: profile.variant,
+    dealt: snapshot.dealt,
+    roundId: snapshot.roundId,
+    roundOpen: snapshot.roundOpen,
+    participation: snapshot.participation,
+  });
 
   return (
     <AppShell
       title="Digitaler Tisch"
-      subtitle="Manuelle Karteneingabe mit Schuh-Validierung — Zählung in Echtzeit, EV in Phase 4."
+      subtitle="Filz, manuelle Karten, ein Schuh. EV kommt nur aus dem gewählten Profil."
     >
       <CountSummary counts={snapshot.counts} compact />
       {lastError ? (
@@ -43,6 +59,11 @@ export function DigitalTable() {
         </div>
       ) : null}
 
+      <div className="mb-4 rounded-card border border-warn/40 bg-felt-gradient p-4 shadow-panel">
+        <p className="font-display text-sm text-warn">Evolution Live · {profile.labelDe}</p>
+        <p className="mt-1 text-sm text-ink">{infiniteSharedHandLabelDe(infinite)}</p>
+        <p className="mt-1 text-xs text-ink-muted">{integrity.messageDe}</p>
+      </div>
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           <ParticipationBar
@@ -88,11 +109,11 @@ export function DigitalTable() {
               </Button>
             </div>
           </Card>
-          <Card title="Engine-Hinweis" eyebrow="Kein EV">
-            <p className="text-sm text-ink-muted">{engineNote}</p>
-            <p className="mt-2 text-xs text-ink-faint">
-              Zählung und Restinventar-Visualisierung folgen in Phase 3 (
-              <code className="font-mono">/karten</code>).
+          <Card title="Profil" eyebrow="Regeln">
+            <p className="text-sm text-ink-muted">
+              {profile.incomplete
+                ? `Offen: ${profile.missingFields.join(", ")}. Keine Empfehlung, wo diese Felder die Hand betreffen.`
+                : "Bedingter Schuh-EV ist für dieses Profil geschlossen. Kein Hausvorteil."}
             </p>
           </Card>
         </aside>

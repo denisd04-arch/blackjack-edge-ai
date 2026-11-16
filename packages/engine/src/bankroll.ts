@@ -11,6 +11,65 @@ export interface KellyResult {
   messageDe: string;
 }
 
+export interface KellyNetInput {
+  /** Expected net profit per 1 unit of the original wager. */
+  ev: number;
+  /** Variance of that net profit. */
+  variance: number;
+  /** Most the original wager can lose, in the same units (1 or 2). */
+  maxLoss: number;
+  /** False when the EV itself is not definitive. */
+  definitive: boolean;
+}
+
+/**
+ * Log-growth fraction of bankroll to put on the original wager:
+ * f* = ev / E[R^2], capped so f * maxLoss ≤ 1.
+ * Not a claim that the game has a positive edge.
+ */
+export function kellyOnNet(input: KellyNetInput): KellyResult {
+  if (!input.definitive) {
+    return {
+      fraction: 0,
+      definitive: false,
+      messageDe:
+        "Kein Kelly — der EV dieser Hand ist nicht definitiv. Kein Einsatz aus einer offenen Regel.",
+    };
+  }
+  if (input.maxLoss <= 0 || input.variance < 0) {
+    return {
+      fraction: 0,
+      definitive: false,
+      messageDe: "Kein Kelly — Verlustgrenze oder Varianz fehlt.",
+    };
+  }
+  if (input.ev <= 0) {
+    return {
+      fraction: 0,
+      definitive: true,
+      messageDe:
+        "Bedingter Netto-EV ist nicht positiv — Kelly-Einsatz 0. Kein Profit-Claim.",
+    };
+  }
+  const secondMoment = input.variance + input.ev * input.ev;
+  if (secondMoment <= 0) {
+    return {
+      fraction: 0,
+      definitive: false,
+      messageDe: "Varianz fehlt — kein Kelly-Bruch.",
+    };
+  }
+  const raw = input.ev / secondMoment;
+  const cap = 1 / input.maxLoss;
+  const capped = Math.max(0, Math.min(cap, raw));
+  return {
+    fraction: Math.round(capped * 10000) / 10000,
+    definitive: true,
+    messageDe:
+      "Kelly auf den Netto-Gewinn der Originalwette, gedeckelt mit dem maximalen Verlust. Nur diese Verteilung — kein Hausvorteil.",
+  };
+}
+
 export function kellyFraction(input: KellyInput): KellyResult {
   if (input.variance <= 0) {
     return {

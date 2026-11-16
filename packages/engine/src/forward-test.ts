@@ -7,8 +7,10 @@ export interface ForwardTestInput {
 
 export interface ForwardTestResult {
   definitive: false;
+  claimsProfit: false;
   messageDe: string;
   observationsDe: string[];
+  nonClaimsDe: string[];
 }
 
 export function forwardTestProjection(
@@ -22,8 +24,15 @@ export function forwardTestProjection(
   ];
   return {
     definitive: false,
+    claimsProfit: false,
     messageDe:
-      "Keine Dollar-Projektion — Kantenwerte für Evolution Free Bet noch nicht freigegeben.",
+      "Nur Beobachtung des Schuhs und der Zählung. Keine Dollar-Projektion und kein Vorteil.",
     observationsDe: observations,
+    nonClaimsDe: [
+      "Kein Hausvorteil und kein RTP.",
+      "Keine profitable Strategie und keine Dollar-Kante.",
+      "Penetration und CSM-Schnitt sind nicht belegt.",
+      "True Count ist eine Zählkennzahl, kein erwarteter Gewinn.",
+    ],
   };
 }

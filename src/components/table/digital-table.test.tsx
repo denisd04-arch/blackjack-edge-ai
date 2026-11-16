@@ -1,13 +1,16 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { GameProfileProvider } from "@/lib/game-profile-context";
 import { TableSessionProvider } from "@/lib/table-session-context";
 import { DigitalTable } from "./digital-table";
 
 function renderTable() {
   return render(
-    <TableSessionProvider>
-      <DigitalTable />
-    </TableSessionProvider>
+    <GameProfileProvider>
+      <TableSessionProvider>
+        <DigitalTable />
+      </TableSessionProvider>
+    </GameProfileProvider>
   );
 }
 

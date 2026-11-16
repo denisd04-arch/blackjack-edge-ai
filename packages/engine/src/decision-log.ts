@@ -18,6 +18,10 @@ export interface DecisionLogEntry {
   actualAction: PlayerAction | null;
   /** EV of the recorded action when definitive. */
   actualEv: number | null;
+  /** Variance of the recommended action's net profit. Absent on older log rows. */
+  recommendedVariance?: number | null;
+  /** Worst loss of that action, in original-bet units. */
+  recommendedMaxLoss?: number | null;
 }
 
 const ACTION_LABEL_DE: Record<PlayerAction, string> = {
@@ -42,11 +46,10 @@ export function buildLogEntry(input: {
   const recommended = input.analysis.definitive
     ? input.analysis.recommended
     : null;
-  const recommendedEv =
+  const recommendedRow =
     recommended && input.analysis.definitive
-      ? (input.analysis.actions.find((a) => a.action === recommended)?.ev ??
-        null)
-      : null;
+      ? input.analysis.actions.find((a) => a.action === recommended)
+      : undefined;
 
   return {
     id: input.id,
@@ -58,9 +61,11 @@ export function buildLogEntry(input: {
     definitive: input.analysis.definitive,
     messageDe: input.analysis.messageDe,
     recommended,
-    recommendedEv,
+    recommendedEv: recommendedRow?.ev ?? null,
     actualAction: null,
     actualEv: null,
+    recommendedVariance: recommendedRow?.variance ?? null,
+    recommendedMaxLoss: recommendedRow?.maxLoss ?? null,
   };
 }
 

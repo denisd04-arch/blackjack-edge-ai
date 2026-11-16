@@ -25,6 +25,13 @@ export function ForwardtestView() {
           ))}
         </ul>
       </Card>
+      <Card className="mt-4" title="Nicht behauptet">
+        <ul className="list-disc space-y-1 pl-5 text-sm text-ink-muted">
+          {projection.nonClaimsDe.map((o) => (
+            <li key={o}>{o}</li>
+          ))}
+        </ul>
+      </Card>
     </AppShell>
   );
 }
