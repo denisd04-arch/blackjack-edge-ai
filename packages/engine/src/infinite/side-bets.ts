@@ -351,6 +351,25 @@ export function freshShoeGapNotes(shoe = freshShoeFromDecks()): {
   };
 }
 
+export type PairCategory = "perfect" | "colored" | "mixed" | "lose";
+export type Plus3Category = "suitedTrips" | "straightFlush" | "threeOfAKind" | "straight" | "flush" | "lose";
+export type Hot3Category = "seven" | "suited21" | "unsuited21" | "total20" | "total19" | "lose";
+
+/** One dealt pair. Same categories the shoe probability uses. */
+export function classifyDealtPair(a: number, b: number): PairCategory {
+  if (a === b) return "perfect";
+  if (Math.floor(a / 4) !== Math.floor(b / 4)) return "lose";
+  return sameColor(a, b) ? "colored" : "mixed";
+}
+
+export function classifyDealtPlus3(i: number, j: number, k: number): Plus3Category {
+  return classifyPlus3(i, j, k);
+}
+
+export function classifyDealtHot3(i: number, j: number, k: number): Hot3Category {
+  return classifyHot3(i, j, k);
+}
+
 function freshShoeFromDecks(): Uint8Array {
   const shoe = new Uint8Array(52);
   shoe.fill(8);

@@ -4,8 +4,8 @@ export type NavSection = {
   description: string;
 };
 
-/** Secondary panels. The shoe itself is the home screen. */
-export const NAV_SECTIONS: NavSection[] = [
+/** Header links. The shoe itself is the home screen. */
+export const HEADER_NAV: NavSection[] = [
   {
     href: "/settings",
     label: "Settings",
@@ -21,9 +21,13 @@ export const NAV_SECTIONS: NavSection[] = [
     label: "Rulebook",
     description: "Rule status and the fresh-shoe help reference.",
   },
-  {
-    href: "/forward",
-    label: "Forward Testing",
-    description: "Immutable recommendations captured before you act.",
-  },
 ];
+
+export const FORWARD_SECTION: NavSection = {
+  href: "/forward",
+  label: "Forward testing",
+  description: "Immutable recommendations captured before you act.",
+};
+
+/** Header routes plus forward testing, which is opened from Testing. */
+export const NAV_SECTIONS: NavSection[] = [...HEADER_NAV, FORWARD_SECTION];

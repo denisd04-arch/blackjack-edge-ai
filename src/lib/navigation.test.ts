@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { NAV_SECTIONS } from "./navigation";
+import { FORWARD_SECTION, HEADER_NAV, NAV_SECTIONS } from "./navigation";
 
 describe("navigation", () => {
-  it("keeps the shoe on one screen and four secondary routes", () => {
+  it("keeps forward testing off the header and linked from testing", () => {
+    expect(HEADER_NAV.map((s) => s.href)).toEqual(["/settings", "/testing", "/rulebook"]);
+    expect(FORWARD_SECTION.href).toBe("/forward");
     expect(NAV_SECTIONS.map((s) => s.href)).toEqual([
       "/settings",
       "/testing",

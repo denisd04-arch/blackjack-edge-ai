@@ -9,4 +9,5 @@ export * from "./counting";
 export * from "./presets";
 export * from "./analysis";
 export * from "./session";
+export * from "./settlement";
 export * from "./simulate";

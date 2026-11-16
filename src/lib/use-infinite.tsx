@@ -2,32 +2,41 @@
 
 import {
   analyzeRemaining,
+  answerBustIt22,
+  applyToLedger,
   cardsDealtPhysical,
+  confirmParticipation,
   createShoe,
   cutReached,
   dealCard,
   decisionHand,
   deleteEvent,
   editEvent,
+  emptyLedger,
   expectedTarget,
   holeReserved,
   inventoryValid,
+  markRoundSettled,
   newShoe,
   nextRound,
+  normalizeSession,
   PRESETS,
   recordOverride,
+  requestHoleReveal,
   retargetEvent,
   seenRanks,
   seenShoe,
   settingsSnapshot,
+  settleSessionRound,
   stand,
   undo,
   redo,
-  completeRound,
   fireManualCut,
   type CutConfig,
   type FullRank,
+  type Ledger,
   type LiveAnalysis,
+  type RoundStakes,
   type ShoeSession,
   type Suit,
   type TableSettings,
@@ -61,8 +70,14 @@ interface Store {
   edge: LiveAnalysis | null;
   solving: boolean;
   snapshots: FrozenSnapshot[];
+  ledger: Ledger;
+  notice: string | null;
   setSettings: (next: TableSettings) => void;
-  deal: (rank: FullRank, suit: Suit, target?: Parameters<typeof dealCard>[3]) => void;
+  confirmPlay: (recommendation: string, stakes: RoundStakes) => void;
+  confirmSkip: (recommendation: string, stakes: RoundStakes) => void;
+  revealHole: () => void;
+  answerBust: (pays: boolean) => void;
+  deal: (rank: FullRank, suit: Suit, target?: Parameters<typeof dealCard>[3]) => string | null;
   onNewShoe: () => void;
   onNextRound: () => string | null;
   onUndo: () => void;
@@ -71,9 +86,8 @@ interface Store {
   onEdit: (id: string, rank: FullRank, suit: Suit) => void;
   onRetarget: (id: string, target: NonNullable<ReturnType<typeof expectedTarget>>) => void;
   onStand: () => void;
-  onComplete: () => void;
   onCut: () => void;
-  chooseAction: (action: string) => void;
+  chooseAction: (action: string, recommended?: string) => void;
   setQuick: (quick: boolean) => void;
   setForcedTarget: (target: ShoeSession["forcedTarget"]) => void;
 }
@@ -86,16 +100,24 @@ export function InfiniteProvider({ children }: { children: ReactNode }) {
   const [edge, setEdge] = useState<LiveAnalysis | null>(null);
   const [solving, setSolving] = useState(false);
   const [snapshots, setSnapshots] = useState<FrozenSnapshot[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [ledger, setLedger] = useState<Ledger>(() => emptyLedger(PRESETS.POSITIVE_EV_ONLY.bankroll));
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE);
     if (!raw) return;
     try {
-      const parsed = JSON.parse(raw) as { session: ShoeSession; settings: TableSettings; snapshots: FrozenSnapshot[] };
+      const parsed = JSON.parse(raw) as {
+        session: ShoeSession;
+        settings: TableSettings;
+        snapshots: FrozenSnapshot[];
+        ledger?: Ledger;
+      };
       if (parsed.session?.events && parsed.settings?.paytableId) {
-        setSession(parsed.session);
+        setSession(normalizeSession(parsed.session));
         setSettingsState(parsed.settings);
         setSnapshots(parsed.snapshots ?? []);
+        if (parsed.ledger?.entries && parsed.ledger.storage === "browser-local") setLedger(parsed.ledger);
       }
     } catch {
       localStorage.removeItem(STORAGE);
@@ -103,8 +125,19 @@ export function InfiniteProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE, JSON.stringify({ session, settings, snapshots }));
-  }, [session, settings, snapshots]);
+    localStorage.setItem(STORAGE, JSON.stringify({ session, settings, snapshots, ledger }));
+  }, [session, settings, snapshots, ledger]);
+
+  useEffect(() => {
+    if (session.phase === "complete") return;
+    const quote = settleSessionRound(session);
+    if (!quote || quote.status !== "SETTLED") return;
+    setLedger((current) => {
+      const next = applyToLedger(current, quote);
+      return next.applied ? next.ledger : current;
+    });
+    setSession((current) => (current.phase === "complete" ? current : markRoundSettled(current)));
+  }, [session]);
 
   const live = useMemo(() => {
     return analyzeRemaining({
@@ -165,9 +198,18 @@ export function InfiniteProvider({ children }: { children: ReactNode }) {
     edge,
     solving,
     snapshots,
+    ledger,
+    notice,
     setSettings: (next) => setSettingsState(settingsSnapshot(next)),
     deal: (rank, suit, target) => {
-      setSession((current) => dealCard(current, rank, suit, target, live).session);
+      let message: string | null = null;
+      setSession((current) => {
+        const result = dealCard(current, rank, suit, target, live);
+        message = result.error ?? null;
+        return result.session;
+      });
+      setNotice(message);
+      return message;
     },
     onNewShoe: () => setSession((current) => newShoe(current)),
     onNextRound: () => {
@@ -181,11 +223,27 @@ export function InfiniteProvider({ children }: { children: ReactNode }) {
     onEdit: (id, rank, suit) => setSession((current) => editEvent(current, id, rank, suit).session),
     onRetarget: (id, target) => setSession((current) => retargetEvent(current, id, target)),
     onStand: () => setSession((current) => stand(current)),
-    onComplete: () => setSession((current) => completeRound(current)),
     onCut: () => setSession((current) => fireManualCut(current)),
-    chooseAction: (action) => {
-      const recommended = edge?.hand?.best.action ?? edge?.recommendation ?? "SKIP";
-      setSession((current) => recordOverride(current, recommended, action));
+    confirmPlay: (recommendation, stakes) => {
+      setSession((current) =>
+        confirmParticipation(current, { round: current.round, recommendation, actual: "PLAYED", stakes })
+      );
+    },
+    confirmSkip: (recommendation, stakes) => {
+      setSession((current) =>
+        confirmParticipation(current, {
+          round: current.round,
+          recommendation,
+          actual: "SKIPPED",
+          stakes: { ...stakes, main: 0 },
+        })
+      );
+    },
+    revealHole: () => setSession((current) => requestHoleReveal(current)),
+    answerBust: (pays) => setSession((current) => answerBustIt22(current, pays)),
+    chooseAction: (action, recommended) => {
+      const advised = recommended ?? edge?.hand?.best.action ?? edge?.recommendation ?? "SKIP";
+      setSession((current) => recordOverride(current, advised, action));
     },
     setQuick: (quick) => setSession((current) => ({ ...current, quickMode: quick })),
     setForcedTarget: (target) => setSession((current) => ({ ...current, forcedTarget: target })),
