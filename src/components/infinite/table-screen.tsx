@@ -54,9 +54,18 @@ export function TableScreen() {
         <section className={`rounded-3xl border p-6 text-center ${call === "PLAY" ? "border-[#e2c27a] bg-[#145c40]" : "border-white/10 bg-[#0a2a20]"}`}>
           <p className="text-xs uppercase tracking-[0.2em] text-[#e2c27a]">Next round from this shoe</p>
           <p className="font-display text-6xl sm:text-7xl">
-            {solving || !edge ? "…" : call === "SKIP_INSUFFICIENT" ? "SKIP" : call}
+            {solving || !edge
+              ? "…"
+              : call === "SKIP_INSUFFICIENT"
+                ? "SKIP"
+                : call === "NOT_DEFINITIVE"
+                  ? "NOT DEFINITIVE"
+                  : call}
           </p>
           {!solving && edge && call === "SKIP_INSUFFICIENT" ? <p className="text-sm">INSUFFICIENT DATA</p> : null}
+          {!solving && edge && call === "NOT_DEFINITIVE" ? (
+            <p className="text-sm">PARTIALLY VERIFIED · not a PLAY</p>
+          ) : null}
           <p className="mt-2 font-mono text-xl">
             {solving || edgePct === null ? "Solving the remaining shoe…" : `${edgePct >= 0 ? "+" : ""}${edgePct.toFixed(2)}% player edge`}
           </p>
@@ -64,7 +73,7 @@ export function TableScreen() {
             {edge ? `${edge.nextRound.quality} · EV ${edge.nextRound.ev.toFixed(4)} units` : "Waiting for the composition solve"}
           </p>
           <p className="mx-auto mt-2 max-w-xl text-xs text-[#f6f1e4]/60">
-            This edge is recomputed from the unseen cards, the Evolution rules, and optimal play. The help-screen RTP is a fresh-shoe label only. A long shoe is marked approximate because cards drawn inside the hand do not further change the composition.
+            This edge is recomputed from the unseen cards. The help-screen RTP is a fresh-shoe label only. The main-game model is partially verified, so a positive number is not a PLAY. A long shoe is approximate because cards drawn inside the hand do not further change the composition.
           </p>
         </section>
 
@@ -147,8 +156,14 @@ export function TableScreen() {
           {(live?.sideBets ?? []).map((bet) => (
             <article key={bet.id} className="rounded-2xl border border-white/10 bg-[#08261c] p-3">
               <h3 className="text-sm uppercase text-[#e2c27a]">{bet.id.replaceAll("_", " ")}</h3>
-              <p className="font-mono text-lg">{bet.decision} · EV {bet.ev.toFixed(4)}</p>
-              <p className="text-xs text-[#f6f1e4]/60">Computed RTP {(bet.computedRtp * 100).toFixed(4)}% from this shoe. Not the help-screen figure.</p>
+              <p className="font-mono text-lg">
+                {bet.verification === "UNVERIFIED" ? "UNVERIFIED" : bet.decision} · EV {bet.ev.toFixed(4)}
+                {bet.alternateEv !== undefined ? ` · other ${bet.alternateEv.toFixed(4)}` : ""}
+              </p>
+              <p className="text-xs text-[#f6f1e4]/60">
+                Computed RTP {(bet.computedRtp * 100).toFixed(4)}% from this shoe. Not the help-screen figure.
+                {bet.verification === "UNVERIFIED" ? " Dealer 22 on this bet is unverified, so there is no BET." : ""}
+              </p>
             </article>
           ))}
         </section>

@@ -1,7 +1,7 @@
 import { trueCount, type CountSystemId } from "./counting";
 import { compositionNextRound } from "./composition-ev";
 import { evaluateActions, insuranceEv, nextRoundMainEv, type ActionEval, type RoundEv } from "./ev";
-import { kellyStake, type KellyResult, type WeightedProfit } from "./kelly";
+import { kellyStake, type KellyResult } from "./kelly";
 import {
   bucketsFrom52,
   freshBuckets,
@@ -22,7 +22,13 @@ import {
   type SideBetResult,
 } from "./side-bets";
 
-export type PlayCall = "PLAY" | "SKIP" | "SKIP_INSUFFICIENT";
+export type PlayCall = "PLAY" | "SKIP" | "SKIP_INSUFFICIENT" | "NOT_DEFINITIVE";
+
+/**
+ * The fresh-shoe main RTP does not match the help screen, and DAS / resplit / max hands
+ * are still a conflicting reading. A positive computed edge is not a PLAY.
+ */
+export const MAIN_EV_VERIFICATION = "PARTIALLY_VERIFIED" as const;
 
 export interface HandInPlay {
   cards: number[];
@@ -42,6 +48,7 @@ export interface LiveAnalysis {
   hand: { actions: ActionEval[]; best: ActionEval; fallback: "COMPOSITION" | "BASIC_STRATEGY" } | null;
   insurance: ReturnType<typeof insuranceEv> | null;
   recommendation: PlayCall;
+  mainVerification: typeof MAIN_EV_VERIFICATION;
   kelly: KellyResult;
   trueCount: number | null;
   trueCountStatus: "OK" | "INVALID";
@@ -114,13 +121,15 @@ export function analyzeRemaining(input: {
     (count.trueCount === null || count.trueCount < input.settings.countThreshold)
   ) {
     recommendation = "SKIP";
-  } else if (playerEdge > input.settings.minEdge) recommendation = "PLAY";
-  else recommendation = "SKIP";
+  } else if (playerEdge > input.settings.minEdge) {
+    // MAIN_EV_VERIFICATION is PARTIALLY_VERIFIED. A positive edge is not a PLAY.
+    recommendation = "NOT_DEFINITIVE";
+  } else recommendation = "SKIP";
 
   const kelly = kellyStake({
     bankroll: input.settings.bankroll,
     userFraction: input.settings.kellyFraction,
-    dist: roundDistribution(nextRound),
+    dist: [{ profit: Math.min(nextRound.ev, 0), p: 1 }],
     experimental: input.settings.experimentalFreeBetComparison ? { pEither: freeBet.pEither } : null,
   });
 
@@ -135,22 +144,11 @@ export function analyzeRemaining(input: {
     hand,
     insurance,
     recommendation,
+    mainVerification: MAIN_EV_VERIFICATION,
     kelly,
     trueCount: count.trueCount,
     trueCountStatus: count.status,
   };
-}
-
-function roundDistribution(round: RoundEv): WeightedProfit[] {
-  if (!(round.ev > 0) || round.quality === "INSUFFICIENT_DATA") {
-    return [{ profit: round.ev, p: 1 }];
-  }
-  const winProfit = round.win > 0 ? (round.ev + round.loss) / round.win : 0;
-  return [
-    { profit: winProfit, p: round.win },
-    { profit: 0, p: round.push },
-    { profit: -1, p: round.loss },
-  ].filter((row) => row.p > 1e-10);
 }
 
 export function freshReferenceShoe(): Uint8Array {

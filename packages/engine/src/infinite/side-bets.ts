@@ -42,7 +42,7 @@ export const PAYTABLE_V2 = {
   bustIt: { 8: 250, 7: 100, 6: 50, 5: 9, 4: 2, 3: 1 },
 } as const;
 
-export type SideDecision = "BET" | "SKIP" | "SKIP_INSUFFICIENT";
+export type SideDecision = "BET" | "SKIP" | "SKIP_INSUFFICIENT" | "UNVERIFIED";
 
 export interface SideBetResult {
   id: "any_pair" | "twenty_one_plus_three" | "hot3" | "bust_it";
@@ -53,6 +53,8 @@ export interface SideBetResult {
   computedRtp: number;
   decision: SideDecision;
   alternateEv?: number;
+  /** Bust It stays UNVERIFIED until the dealer-22 rule is known. */
+  verification?: "UNVERIFIED";
   note: string;
 }
 
@@ -283,9 +285,8 @@ export function bustItFromShoe(shoe: Uint8Array, minEdge = 0): SideBetResult {
   probs.loseIf22DoesNotPay = Math.max(0, 1 - win23);
   let decision: SideDecision;
   if (sum52(shoe) < 8) decision = "SKIP_INSUFFICIENT";
-  else if (ev22 > minEdge && ev23 > minEdge) decision = "BET";
   else if (ev22 <= minEdge && ev23 <= minEdge) decision = "SKIP";
-  else decision = "SKIP_INSUFFICIENT";
+  else decision = "UNVERIFIED";
   return {
     id: "bust_it",
     paytableId: PAYTABLE_ID,
@@ -294,8 +295,9 @@ export function bustItFromShoe(shoe: Uint8Array, minEdge = 0): SideBetResult {
     alternateEv: ev23,
     computedRtp: 1 + ev22,
     decision,
+    verification: "UNVERIFIED",
     note:
-      "Five-card bust pays 9:1. EV treats dealer 22 as a bust; alternateEv does not. The screenshots do not say which, so a sign conflict is insufficient data. Neither number is the help-screen RTP.",
+      "Five-card bust pays 9:1. ev includes dealer 22 as a paid bust; alternateEv excludes it. The help screenshots do not say which, so Bust It is never a definitive BET.",
   };
 }
 

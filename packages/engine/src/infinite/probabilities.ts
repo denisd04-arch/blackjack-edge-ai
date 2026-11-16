@@ -8,6 +8,13 @@ export interface FreeBetChances {
   pNeither: number;
 }
 
+/** Opening free double is a two-card hard 9, 10, or 11. An ace, a ten, or a third card does not qualify. */
+export function isOpeningFreeDouble(cards: readonly number[]): boolean {
+  if (cards.length !== 2) return false;
+  const hard = valueCards(cards).hardTotal;
+  return hard === 9 || hard === 10 || hard === 11;
+}
+
 /** Exact two-card chances from the remaining rank composition. */
 export function freeBetProbabilities(counts: Uint8Array): FreeBetChances {
   const n = sumBuckets(counts);
@@ -24,8 +31,7 @@ export function freeBetProbabilities(counts: Uint8Array): FreeBetChances {
       const b = c1 === c2 ? a - 1 : (counts[c2] ?? 0);
       if (b <= 0) continue;
       const p = (a / n) * (b / (n - 1));
-      const info = valueCards([c1, c2]);
-      const freeDouble = info.hardTotal === 9 || info.hardTotal === 10 || info.hardTotal === 11;
+      const freeDouble = isOpeningFreeDouble([c1, c2]);
       const freeSplit = c1 === c2 && c1 !== 9;
       if (freeDouble) pFreeDouble += p;
       if (freeSplit) pFreeSplit += p;

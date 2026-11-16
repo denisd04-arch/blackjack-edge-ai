@@ -296,7 +296,7 @@ export const INFINITE_RULE_FIELDS: readonly RuleField<unknown>[] = [
     version: RULE_PROFILE_VERSION,
     override: null,
     explanation:
-      "The main game pushes dealer 22. Whether Bust It pays on 22 is not on the screenshot. Both treatments are calculated. If they disagree on the sign of EV, the side bet is SKIP (INSUFFICIENT DATA).",
+      "The main game pushes dealer 22. The paytable screenshots do not say whether Bust It pays on 22. Both EVs stay. The side bet is never a definitive BET.",
     critical: false,
   },
 ];

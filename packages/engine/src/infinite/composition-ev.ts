@@ -12,6 +12,27 @@ import {
 } from "./model";
 import { definitiveRulesAllowed } from "./rules";
 
+/** Product rules used for the live edge. Audit runs pass a different set and do not replace this. */
+export interface EvAssumptions {
+  pushOn22: boolean;
+  freeDouble: boolean;
+  freeSplit: boolean;
+  doubleAfterSplit: boolean;
+  maxHands: number;
+  charlie: boolean;
+  splitAces: boolean;
+}
+
+export const PRODUCT_ASSUMPTIONS: EvAssumptions = {
+  pushOn22: true,
+  freeDouble: true,
+  freeSplit: true,
+  doubleAfterSplit: true,
+  maxHands: 4,
+  charlie: true,
+  splitAces: true,
+};
+
 const MODE: Record<0 | 1 | 2, StakeMode> = {
   0: "plain",
   1: "free-double",
@@ -26,7 +47,10 @@ const MODE: Record<0 | 1 | 2, StakeMode> = {
  * composition with replacement, so a long shoe is marked approximate.
  * The published house edge is not an input.
  */
-export function compositionNextRound(counts: Uint8Array): RoundEv {
+export function compositionNextRound(
+  counts: Uint8Array,
+  assumptions: EvAssumptions = PRODUCT_ASSUMPTIONS
+): RoundEv {
   if (!definitiveRulesAllowed() || sumBuckets(counts) < 4) {
     return blank();
   }
@@ -34,7 +58,7 @@ export function compositionNextRound(counts: Uint8Array): RoundEv {
   const solvers = new Map<number, Solver>();
   for (let up = 0; up < 10; up += 1) {
     if ((counts[up] ?? 0) <= 0) continue;
-    solvers.set(up, createSolver(counts, up, true));
+    solvers.set(up, createSolver(counts, up, true, assumptions));
   }
   const n0 = sumBuckets(counts);
   const parts: { p: number; m: Moments }[] = [];
@@ -108,7 +132,7 @@ export function compositionHandEv(
       ]),
     };
   }
-  const solver = createSolver(counts, up, false);
+  const solver = createSolver(counts, up, false, PRODUCT_ASSUMPTIONS);
   const played = solver.play([...cards], true, false, 1);
   return {
     action: played.action,
@@ -128,10 +152,18 @@ interface Solver {
   play: (cards: number[], cash: boolean, aceLock: boolean, handCount: number) => Played;
 }
 
-function createSolver(counts: Uint8Array, up: number, removeUpcard: boolean): Solver {
+function createSolver(
+  counts: Uint8Array,
+  up: number,
+  removeUpcard: boolean,
+  assumptions: EvAssumptions
+): Solver {
   const work = counts.slice();
   if (removeUpcard && (work[up] ?? 0) > 0) work[up] = (work[up] ?? 0) - 1;
-  const dist = dealerDistribution(up, work, createDealerMemos(), true);
+  const raw = dealerDistribution(up, work, createDealerMemos(), true);
+  const dist = assumptions.pushOn22
+    ? raw
+    : { ...raw, bust: raw.bust + raw.t22, t22: 0 };
   const n = sumBuckets(work);
   const prob = new Float64Array(10);
   for (let r = 0; r < 10; r += 1) prob[r] = n > 0 ? (work[r] ?? 0) / n : 0;
@@ -145,7 +177,7 @@ function createSolver(counts: Uint8Array, up: number, removeUpcard: boolean): So
           total: info.total,
           bust: info.bust,
           blackjack: false,
-          charlie: info.charlie,
+          charlie: assumptions.charlie && info.charlie,
           cash,
           mode: MODE[dbl],
         },
@@ -160,9 +192,10 @@ function createSolver(counts: Uint8Array, up: number, removeUpcard: boolean): So
     const cached = memo.get(key);
     if (cached) return cached;
     const info = valueCards(sorted);
+    const charlie = assumptions.charlie && info.charlie;
     let action = "STAND";
     let best = finish(sorted, cash, 0);
-    if (!info.bust && !aceLock && !info.charlie && sorted.length < 6) {
+    if (!info.bust && !aceLock && !charlie && sorted.length < 6) {
       const hits: { p: number; m: Moments }[] = [];
       for (let r = 0; r < 10; r += 1) {
         if (prob[r]! <= 0) continue;
@@ -176,8 +209,14 @@ function createSolver(counts: Uint8Array, up: number, removeUpcard: boolean): So
         }
       }
       const hard = info.hardTotal;
-      if (sorted.length === 2 && hard !== null && (hard === 9 || hard === 10 || hard === 11)) {
-        for (const dbl of [1, 2] as const) {
+      const canDouble =
+        sorted.length === 2 &&
+        hard !== null &&
+        (hard === 9 || hard === 10 || hard === 11) &&
+        (assumptions.doubleAfterSplit || handCount === 1);
+      if (canDouble) {
+        const modes = (assumptions.freeDouble ? [1, 2] : [2]) as (1 | 2)[];
+        for (const dbl of modes) {
           const draws: { p: number; m: Moments }[] = [];
           for (let r = 0; r < 10; r += 1) {
             if (prob[r]! <= 0) continue;
@@ -190,7 +229,13 @@ function createSolver(counts: Uint8Array, up: number, removeUpcard: boolean): So
           }
         }
       }
-      if (info.pair && sorted.length === 2 && handCount < 4 && sorted[0] !== undefined) {
+      if (
+        info.pair &&
+        sorted.length === 2 &&
+        handCount < assumptions.maxHands &&
+        sorted[0] !== undefined &&
+        (sorted[0] !== 0 || assumptions.splitAces)
+      ) {
         const split = splitHands(sorted[0], cash, handCount);
         if (split.ev > best.ev) {
           best = split;
@@ -205,7 +250,7 @@ function createSolver(counts: Uint8Array, up: number, removeUpcard: boolean): So
 
   function splitHands(rank: number, cash: boolean, handCount: number): Moments {
     const aces = rank === 0;
-    const rightCash = rank === 9;
+    const rightCash = assumptions.freeSplit ? rank === 9 : true;
     const parts: { p: number; m: Moments }[] = [];
     for (let r1 = 0; r1 < 10; r1 += 1) {
       if (prob[r1]! <= 0) continue;
