@@ -1,6 +1,6 @@
 "use client";
 
-import { applyToLedger, consumeShoe, emptyLedger, lifetimeRollup, settingsSnapshot } from "@blackjack-edge/engine";
+import { playShoeEngine, settingsSnapshot } from "@blackjack-edge/engine";
 import Link from "next/link";
 import { useState } from "react";
 import { InfiniteShell } from "@/components/infinite/shell";
@@ -17,35 +17,39 @@ export default function TestingPage() {
   const { settings } = useInfinite();
   const [rows, setRows] = useState<Row[]>([]);
   const [running, setRunning] = useState(false);
-  const [note, setNote] = useState("No batch yet.");
-  const [moneyNote, setMoneyNote] = useState("No simulation ledger yet.");
+  const [note, setNote] = useState("Noch kein Lauf.");
+  const [moneyNote, setMoneyNote] = useState("Noch kein Shoe.");
+  const [custom, setCustom] = useState(25);
   const snapshot = settingsSnapshot(settings);
 
   async function run(count: number) {
     setRunning(true);
     const next: Row[] = [];
-    let ledger = emptyLedger(0);
-    const background = count > 200 ? 1 : 4;
+    const background = count > 200 ? 1 : 2;
     for (let i = 0; i < count; i += 1) {
       const seed = 1000 + i;
-      const result = consumeShoe({
+      const result = playShoeEngine({
         seed,
         cutDealt: snapshot.cut.mode === "CUT_AFTER_CARDS_DEALT" ? snapshot.cut.cardsDealt : 312,
-        backgroundCards: background,
-        maxRounds: 40,
+        extraBurns: background,
+        maxRounds: count > 100 ? 8 : 20,
+        stake: "flat",
+        sideBets: snapshot.sideBets,
+        otherPlayers: 1,
+        bankroll: snapshot.bankroll,
+        decks: snapshot.decks ?? 8,
       });
       const split = i < count * 0.5 ? "train" : i < count * 0.75 ? "validation" : "holdout";
-      next.push({ seed, net: result.net, rounds: result.rounds, split });
-      for (const entry of result.ledger.entries) ledger = applyToLedger(ledger, entry).ledger;
+      next.push({ seed, net: result.totalNet, rounds: result.rounds, split });
       if (i % 5 === 0) {
         setRows([...next]);
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
     }
     setRows(next);
-    const roll = lifetimeRollup(ledger);
+    const total = next.reduce((sum, row) => sum + row.net, 0);
     setMoneyNote(
-      `Simulation ledger net ${roll.roundNet.toFixed(2)} on ${roll.roundCash} player cash. Return ${roll.roundRoi === null ? "not available" : `${(roll.roundRoi * 100).toFixed(2)}%`}. A winning shoe is net profit above zero. This is the same ledger as the live table, and it is not a profitability claim.`
+      `Summe ${total.toFixed(2)} über ${next.length} Shoes. Dieselbe Engine wie der Tisch. Kein Profitabilitätsbeleg, solange das Hauptspiel nur teilweise verifiziert ist.`
     );
     const hold = next.filter((r) => r.split === "holdout");
     const holdMean = hold.reduce((s, r) => s + r.net, 0) / Math.max(1, hold.length);
@@ -60,21 +64,31 @@ export default function TestingPage() {
   const forecast = rows[0];
   return (
     <InfiniteShell>
-      <h1 className="font-display text-3xl">Testing</h1>
+      <h1 className="font-display text-3xl">Test</h1>
       <p className="mt-2 max-w-2xl text-sm text-[#f6f1e4]/70">
-        Manual entry stays on the main shoe. Autoplay and multi-shoe runs use one fixed rules policy, draw real background cards, and stop at the cut. Settings are copied before the run.
+        Manuelle Karten bleiben auf dem Tisch. Autoplay spielt volle Runden mit derselben Policy, inklusive Split, Double und Dealer. Der Lauf sieht keine zukünftigen Karten. Kein Profitabilitätsbeleg.
       </p>
       <p className="mt-2 font-mono text-xs">Snapshot preset {snapshot.presetId} · paytable {snapshot.paytableId}</p>
       <p className="mt-4 max-w-2xl text-sm">
         <Link href="/forward" className="font-semibold text-[#e2c27a] underline">
-          Forward testing
+          Forward-Test
         </Link>
         {" "}
         opens the recommendations frozen before each round on the live shoe. A batch on this page does not rewrite them.
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
-        <button type="button" className="min-h-11 rounded-lg bg-[#e2c27a] px-4 text-[#1a1408]" disabled={running} onClick={() => run(10)}>10 shoes</button>
-        <button type="button" className="min-h-11 rounded-lg border border-[#e2c27a] px-4" disabled={running} onClick={() => run(50)}>50 shoes</button>
+        {[10, 50, 100, 500, 1000].map((count) => (
+          <button key={count} type="button" className="min-h-11 rounded-lg border border-[#e2c27a] px-4" disabled={running} onClick={() => run(count)}>
+            {count} Shoes
+          </button>
+        ))}
+        <label className="flex min-h-11 items-center gap-2 text-sm">
+          Eigene Anzahl
+          <input className="min-h-11 w-24 rounded-lg bg-[#0c3b2e] px-2" type="number" min={1} value={custom} onChange={(event) => setCustom(Math.max(1, Math.round(Number(event.target.value) || 1)))} />
+        </label>
+        <button type="button" className="min-h-11 rounded-lg bg-[#e2c27a] px-4 text-[#1a1408]" disabled={running} onClick={() => run(custom)}>
+          Start
+        </button>
       </div>
       <p className="mt-3 text-sm">{running ? "Running off the interaction, one shoe at a time." : note}</p>
       <p className="mt-2 max-w-2xl text-sm">{moneyNote}</p>

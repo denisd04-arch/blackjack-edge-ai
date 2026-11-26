@@ -21,24 +21,27 @@ describe("table participation", () => {
 
   it("asks before any card and does not use a round-complete button", () => {
     renderTable();
-    expect(screen.getByRole("dialog", { name: "Did you play" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "YES I PLAYED" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "NO I SKIPPED" })).toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: "Add a card" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Hast du mitgespielt" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Runde starten" }));
+    expect(screen.getByRole("dialog", { name: "Hast du mitgespielt" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "JA, ICH HABE GESPIELT" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "NEIN, ICH HABE AUSGESETZT" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Karte hinzufügen" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /round complete/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /CONFIRM TABLE ROUND SETTLED/i })).not.toBeInTheDocument();
-    fireEvent.mouseDown(screen.getByRole("dialog", { name: "Did you play" }).parentElement!);
-    expect(screen.getByRole("dialog", { name: "Did you play" })).toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole("dialog", { name: "Hast du mitgespielt" }).parentElement!);
+    expect(screen.getByRole("dialog", { name: "Hast du mitgespielt" })).toBeInTheDocument();
   });
 
   it("keeps the card window open after a skipped round starts taking cards", () => {
     renderTable();
-    fireEvent.click(screen.getByRole("button", { name: "NO I SKIPPED" }));
-    fireEvent.click(screen.getByRole("button", { name: "Confirm stakes" }));
-    expect(screen.getByRole("dialog", { name: "Add a card" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /2 of hearts/ }));
-    expect(screen.getByRole("dialog", { name: "Add a card" })).toBeInTheDocument();
-    expect(screen.getByText("Next card: Dealer")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Runde starten" }));
+    fireEvent.click(screen.getByRole("button", { name: "NEIN, ICH HABE AUSGESETZT" }));
+    fireEvent.click(screen.getByRole("button", { name: "Einsätze bestätigen" }));
+    expect(screen.getByRole("dialog", { name: "Karte hinzufügen" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /2 Herz/ }));
+    expect(screen.getByRole("dialog", { name: "Karte hinzufügen" })).toBeInTheDocument();
+    expect(screen.getByText("Nächste Karte: Dealer")).toBeInTheDocument();
     expect(screen.queryByTestId("round-advisor")).not.toBeInTheDocument();
   });
 });

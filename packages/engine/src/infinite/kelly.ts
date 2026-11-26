@@ -81,6 +81,47 @@ export function experimentalComparison(bankroll: number, fraction: number, pEith
   return Math.floor(bankroll * clampFraction(fraction) * Math.min(1, pEither) * 0.02);
 }
 
+export interface VerifiedStakeInput {
+  verification: "VERIFIED" | "PARTIALLY_VERIFIED" | "APPROXIMATE" | "NOT_DEFINITIVE" | "UNVERIFIED";
+  quality: "EXACT" | "APPROXIMATE" | "MONTE_CARLO" | "INSUFFICIENT_DATA";
+  dist: readonly WeightedProfit[];
+  bankroll: number;
+  userFraction: number;
+  /** Table minimum and maximum for the main stake, in currency units. */
+  limit: { min: number; max: number };
+  openExposure: number;
+  trials?: number;
+  seed?: number;
+  standardError?: number;
+  interval95?: [number, number];
+}
+
+/**
+ * Stake only from a full profit distribution whose verification and sample both hold.
+ * Anything short of that returns null, which the UI must show as no stake.
+ */
+export function stakeFromVerifiedDistribution(input: VerifiedStakeInput): KellyResult | null {
+  if (input.verification !== "VERIFIED") return null;
+  if (input.quality === "INSUFFICIENT_DATA" || input.quality === "APPROXIMATE") return null;
+  if (input.quality === "MONTE_CARLO") {
+    if (input.seed === undefined || !input.trials || input.trials < 10000) return null;
+    if (input.standardError === undefined || !input.interval95) return null;
+    if (input.interval95[0] <= 0) return null;
+  }
+  const mass = input.dist.reduce((sum, row) => sum + row.p, 0);
+  if (Math.abs(mass - 1) > 1e-6) return null;
+  if (!input.dist.some((row) => row.profit > 0) || !input.dist.some((row) => row.profit < 0)) return null;
+  const result = kellyStake({
+    bankroll: Math.max(0, input.bankroll - input.openExposure),
+    userFraction: input.userFraction,
+    dist: input.dist,
+  });
+  if (!(result.ev > 0) || result.stake <= 0) return null;
+  const capped = Math.min(input.limit.max, Math.max(input.limit.min, result.stake));
+  if (capped > input.bankroll - input.openExposure) return null;
+  return { ...result, stake: capped, note: "Fractional Kelly from the verified profit distribution, capped by the table limit and open exposure." };
+}
+
 export function clampFraction(value: number): number {
   if (!Number.isFinite(value)) return 0.25;
   return Math.min(1, Math.max(0.1, value));

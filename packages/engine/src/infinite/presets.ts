@@ -16,6 +16,8 @@ export interface TableSettings {
   paytableId: typeof PAYTABLE_ID;
   currency: "EUR" | "USD" | "units";
   bankroll: number;
+  /** Applied on the next shoe. The open shoe keeps the deck count it started with. */
+  decks: number;
   kellyFraction: number;
   minEdge: number;
   countSystem: CountSystemId;
@@ -42,6 +44,7 @@ export const PRESETS: Record<Exclude<PresetId, "CUSTOM">, TableSettings> = {
     paytableId: PAYTABLE_ID,
     currency: "EUR",
     bankroll: 1000,
+    decks: 8,
     kellyFraction: 0.25,
     minEdge: 0.005,
     countSystem: "hi_lo",
@@ -57,6 +60,7 @@ export const PRESETS: Record<Exclude<PresetId, "CUSTOM">, TableSettings> = {
     paytableId: PAYTABLE_ID,
     currency: "EUR",
     bankroll: 1000,
+    decks: 8,
     kellyFraction: 0.5,
     minEdge: 0,
     countSystem: "hi_lo",
@@ -72,6 +76,7 @@ export const PRESETS: Record<Exclude<PresetId, "CUSTOM">, TableSettings> = {
     paytableId: PAYTABLE_ID,
     currency: "EUR",
     bankroll: 1000,
+    decks: 8,
     kellyFraction: 0.5,
     minEdge: 0,
     countSystem: "hi_lo",
@@ -87,6 +92,7 @@ export const PRESETS: Record<Exclude<PresetId, "CUSTOM">, TableSettings> = {
     paytableId: PAYTABLE_ID,
     currency: "EUR",
     bankroll: 1000,
+    decks: 8,
     kellyFraction: 0.25,
     minEdge: 0,
     countSystem: "hi_lo",
@@ -102,6 +108,7 @@ export const PRESETS: Record<Exclude<PresetId, "CUSTOM">, TableSettings> = {
     paytableId: PAYTABLE_ID,
     currency: "EUR",
     bankroll: 1000,
+    decks: 8,
     kellyFraction: 0.1,
     minEdge: 0,
     countSystem: "hi_lo",
@@ -117,6 +124,7 @@ export const PRESETS: Record<Exclude<PresetId, "CUSTOM">, TableSettings> = {
     paytableId: PAYTABLE_ID,
     currency: "EUR",
     bankroll: 1000,
+    decks: 8,
     kellyFraction: 0.35,
     minEdge: 0,
     countSystem: "omega_ii",

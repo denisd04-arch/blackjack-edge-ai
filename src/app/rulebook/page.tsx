@@ -14,7 +14,7 @@ export default function RulebookPage() {
   const gap = useMemo(() => freshShoeGapNotes(), []);
   return (
     <InfiniteShell>
-      <h1 className="font-display text-3xl">Rulebook</h1>
+      <h1 className="font-display text-3xl">Regelwerk</h1>
       <p className="mt-2 max-w-3xl text-sm text-[#f6f1e4]/80">
         This assistant follows Evolution Infinite Free Bet Blackjack. Eight decks. The dealer stands on soft 17. Blackjack pays 3 to 2. A normal win pays 1 to 1. Insurance pays 2 to 1 and is a separate bet.
       </p>
@@ -32,8 +32,8 @@ export default function RulebookPage() {
           <li>New shoe starts another eight-deck shoe. It is not the next round.</li>
           <li>Next round is allowed only after the table round is settled.</li>
           <li>Standing, a bust, or Six Card Charlie ends your hand. Other players and the dealer still take cards into this shoe. The round is not settled just because you stood.</li>
-          <li>The hidden card is reserved once when your opening cards and the dealer upcard are in. It leaves the remaining count immediately. Enter it when it is turned over. Undo and redo put that same card back.</li>
-          <li>Confirm table round settled is the settlement control. Use it when the table has finished the round, including an ending that is hard to read.</li>
+          <li>Die Hole Card wird einmal reserviert, sobald die beiden eigenen Startkarten und die Upcard da sind. Sie bleibt in der Zusammensetzung unbekannt, bis sie aufgedeckt wird. Das Aufdecken ersetzt die Reservierung und entfernt keine zweite Karte.</li>
+          <li>Die Abrechnung läuft von allein, wenn der Dealer fertig ist. Ein extra Button „Runde fertig“ gibt es nicht. Nur Dealer 22 bei Bust It wird nachgefragt, weil diese Regel UNVERIFIED ist.</li>
           <li>The live shoe is stored in this browser. It is not written to the database.</li>
         </ul>
       </section>

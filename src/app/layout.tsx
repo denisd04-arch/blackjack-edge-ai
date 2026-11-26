@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     template: "%s · Blackjack Edge AI",
   },
   description:
-    "One-shoe assistant for Evolution Infinite Free Bet Blackjack.",
+    "Ein Shoe für Evolution Infinite Free Bet Blackjack.",
 };
 
 export default function RootLayout({

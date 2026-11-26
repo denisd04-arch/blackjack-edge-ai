@@ -9,13 +9,13 @@ import { useInfinite } from "@/lib/use-infinite";
 const IDS = Object.keys(PRESETS) as Exclude<PresetId, "CUSTOM">[];
 
 export default function SettingsPage() {
-  const { settings, setSettings } = useInfinite();
+  const { settings, setSettings, customPresets, savePreset, renamePreset, deletePreset } = useInfinite();
   const patch = (partial: Partial<TableSettings>) => setSettings({ ...settings, ...partial, presetId: "CUSTOM" });
   return (
     <InfiniteShell>
-      <h1 className="font-display text-3xl">Settings</h1>
+      <h1 className="font-display text-3xl">Einstellungen</h1>
       <p className="mt-2 max-w-2xl text-sm text-[#f6f1e4]/70">
-        Presets stay on paytable version 2. A test run stores a copy that later edits do not change. These settings stay in this browser. They are not moved to the database.
+        Presets bleiben auf Paytable Version 2. Cut Card und Decks gelten für den nächsten Shoe. Der offene Shoe bleibt unverändert. Ohne Anmeldung liegt alles in diesem Browser.
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
         {IDS.map((id) => (
@@ -30,7 +30,37 @@ export default function SettingsPage() {
           </button>
         ))}
       </div>
-      <p className="mt-4 text-sm">Current preset: {presetLabel(settings.presetId)}. {presetBlurb(settings.presetId)}</p>
+      <p className="mt-4 text-sm">Aktives Preset: {presetLabel(settings.presetId)}. {presetBlurb(settings.presetId)}</p>
+      <form
+        className="mt-3 flex flex-wrap gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const data = new FormData(event.currentTarget);
+          savePreset(String(data.get("name") ?? ""));
+          event.currentTarget.reset();
+        }}
+      >
+        <input name="name" aria-label="Preset-Name" className="min-h-11 rounded-lg bg-[#0c3b2e] px-3" placeholder="Name für dieses Preset" />
+        <button type="submit" className="min-h-11 rounded-lg bg-[#e2c27a] px-4 text-[#1a1408]">Preset speichern</button>
+      </form>
+      <ul className="mt-3 space-y-2">
+        {customPresets.map((preset) => (
+          <li key={preset.id} className="flex flex-wrap items-center gap-2 text-sm">
+            <button type="button" className="min-h-11 rounded-lg border border-[#e2c27a]/40 px-3" onClick={() => setSettings(preset.settings)}>
+              {preset.name}
+            </button>
+            <input
+              aria-label={`Preset umbenennen ${preset.name}`}
+              className="min-h-11 rounded-lg bg-[#0c3b2e] px-3"
+              defaultValue={preset.name}
+              onBlur={(event) => renamePreset(preset.id, event.target.value)}
+            />
+            <button type="button" className="min-h-11 rounded-lg border border-white/20 px-3" onClick={() => deletePreset(preset.id)}>
+              Löschen
+            </button>
+          </li>
+        ))}
+      </ul>
       <form className="mt-6 grid max-w-2xl gap-4">
         <Field
           label="Currency"
@@ -91,9 +121,9 @@ export default function SettingsPage() {
           />
         </Field>
         <Field
-          label="Cut"
-          hint="When this shoe must stop and a new shoe is required."
-          detail="Changes when the table blocks another round and where a testing run stops. It does not change the expected value of the cards already in the shoe, side bets, or a recommendation that was already frozen."
+          label="Cut Card"
+          hint="Gilt für den nächsten Shoe, nicht für den laufenden."
+          detail="Der nächste Shoe stoppt bei diesem Cut. Der laufende Shoe behält seinen Cut. Erwartungswert und Paytable bleiben gleich."
         >
           <select
             className="mt-1 block min-h-11 w-full rounded-lg bg-[#0c3b2e] px-3"
@@ -122,13 +152,20 @@ export default function SettingsPage() {
           ) : null}
         </Field>
         <Field
-          label="Side bets flag"
-          hint="Stored with the preset. The four side bets stay on the table."
-          detail="Saves whether this preset is meant to watch side bets. The table still computes all four from the shoe, and Bust It stays unverified. It does not change their expected value or the paytable. Testing copies the flag into the run snapshot."
+          label="Decks"
+          hint="8 Decks sind die verifizierte Infinite-Vorgabe. Gilt ab dem nächsten Shoe."
+          detail="Ändert die Kartenmenge des nächsten Shoes. Der laufende Shoe zählt weiter mit der Deckzahl, mit der er begonnen hat."
+        >
+          <input className="mt-1 block min-h-11 w-full rounded-lg bg-[#0c3b2e] px-3" type="number" min={1} max={8} value={settings.decks ?? 8} onChange={(e) => patch({ decks: Math.min(8, Math.max(1, Math.round(Number(e.target.value) || 8))) })} />
+        </Field>
+        <Field
+          label="Side bets"
+          hint="Schaltet, ob Side Bets gesetzt werden."
+          detail="Aus: die vier Side Bets werden weiter gerechnet, aber keine davon wird gesetzt. Bust It bleibt UNVERIFIED. Die Paytable ändert sich nicht."
         >
           <label className="mt-1 flex min-h-11 items-center gap-2 text-sm">
             <input type="checkbox" checked={settings.sideBets} onChange={(e) => patch({ sideBets: e.target.checked })} />
-            Keep the side-bet flag on
+            Side Bets in diesem Preset setzen
           </label>
         </Field>
         <Field
@@ -139,16 +176,6 @@ export default function SettingsPage() {
           <label className="mt-1 flex min-h-11 items-center gap-2 text-sm">
             <input type="checkbox" checked={settings.experimentalFreeBetComparison} onChange={(e) => patch({ experimentalFreeBetComparison: e.target.checked })} />
             Show the experimental comparison
-          </label>
-        </Field>
-        <Field
-          label="Portfolio flag"
-          hint="Stored with the side-bet experiment preset."
-          detail="Remembers that this preset groups the side bets together. It does not change expected value, the paytable, stake sizing, or the cards used in testing."
-        >
-          <label className="mt-1 flex min-h-11 items-center gap-2 text-sm">
-            <input type="checkbox" checked={settings.portfolio} onChange={(e) => patch({ portfolio: e.target.checked })} />
-            Keep the portfolio flag on
           </label>
         </Field>
       </form>

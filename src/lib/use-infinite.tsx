@@ -17,7 +17,6 @@ import {
   holeReserved,
   inventoryValid,
   markRoundSettled,
-  newShoe,
   nextRound,
   normalizeSession,
   PRESETS,
@@ -28,6 +27,10 @@ import {
   seenShoe,
   settingsSnapshot,
   settleSessionRound,
+  beginRound,
+  doubleHand,
+  setInsurance,
+  splitHand,
   stand,
   undo,
   redo,
@@ -41,6 +44,7 @@ import {
   type Suit,
   type TableSettings,
 } from "@blackjack-edge/engine";
+import { ARCHIVE_KEY, migrateLivePayload } from "@/lib/persistence/archive";
 import {
   createContext,
   useContext,
@@ -72,6 +76,10 @@ interface Store {
   snapshots: FrozenSnapshot[];
   ledger: Ledger;
   notice: string | null;
+  customPresets: { id: string; name: string; settings: TableSettings }[];
+  savePreset: (name: string) => void;
+  renamePreset: (id: string, name: string) => void;
+  deletePreset: (id: string) => void;
   setSettings: (next: TableSettings) => void;
   confirmPlay: (recommendation: string, stakes: RoundStakes) => void;
   confirmSkip: (recommendation: string, stakes: RoundStakes) => void;
@@ -86,6 +94,10 @@ interface Store {
   onEdit: (id: string, rank: FullRank, suit: Suit) => void;
   onRetarget: (id: string, target: NonNullable<ReturnType<typeof expectedTarget>>) => void;
   onStand: () => void;
+  beginRound: () => void;
+  split: (kind: "SPLIT_FREE" | "SPLIT_REGULAR") => string | null;
+  doubleDown: (mode: "free-double" | "regular-double") => string | null;
+  insure: (stake: number) => string | null;
   onCut: () => void;
   chooseAction: (action: string, recommended?: string) => void;
   setQuick: (quick: boolean) => void;
@@ -102,6 +114,7 @@ export function InfiniteProvider({ children }: { children: ReactNode }) {
   const [snapshots, setSnapshots] = useState<FrozenSnapshot[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [ledger, setLedger] = useState<Ledger>(() => emptyLedger(PRESETS.POSITIVE_EV_ONLY.bankroll));
+  const [customPresets, setCustomPresets] = useState<{ id: string; name: string; settings: TableSettings }[]>([]);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE);
@@ -112,12 +125,14 @@ export function InfiniteProvider({ children }: { children: ReactNode }) {
         settings: TableSettings;
         snapshots: FrozenSnapshot[];
         ledger?: Ledger;
+        customPresets?: { id: string; name: string; settings: TableSettings }[];
       };
       if (parsed.session?.events && parsed.settings?.paytableId) {
         setSession(normalizeSession(parsed.session));
-        setSettingsState(parsed.settings);
+        setSettingsState({ ...parsed.settings, decks: parsed.settings.decks ?? 8 });
         setSnapshots(parsed.snapshots ?? []);
         if (parsed.ledger?.entries && parsed.ledger.storage === "browser-local") setLedger(parsed.ledger);
+        if (Array.isArray(parsed.customPresets)) setCustomPresets(parsed.customPresets);
       }
     } catch {
       localStorage.removeItem(STORAGE);
@@ -125,8 +140,11 @@ export function InfiniteProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE, JSON.stringify({ session, settings, snapshots, ledger }));
-  }, [session, settings, snapshots, ledger]);
+    const raw = JSON.stringify({ session, settings, snapshots, ledger, customPresets });
+    localStorage.setItem(STORAGE, raw);
+    const moved = migrateLivePayload(raw, "local-user");
+    if (moved.file?.verified) localStorage.setItem(ARCHIVE_KEY, JSON.stringify(moved.file));
+  }, [session, settings, snapshots, ledger, customPresets]);
 
   useEffect(() => {
     if (session.phase === "complete") return;
@@ -200,6 +218,15 @@ export function InfiniteProvider({ children }: { children: ReactNode }) {
     snapshots,
     ledger,
     notice,
+    customPresets,
+    savePreset: (name) =>
+      setCustomPresets((current) => [
+        ...current,
+        { id: `preset-${Date.now().toString(36)}`, name: name.trim() || "Preset", settings: settingsSnapshot(settings) },
+      ]),
+    renamePreset: (id, name) =>
+      setCustomPresets((current) => current.map((row) => (row.id === id ? { ...row, name } : row))),
+    deletePreset: (id) => setCustomPresets((current) => current.filter((row) => row.id !== id)),
     setSettings: (next) => setSettingsState(settingsSnapshot(next)),
     deal: (rank, suit, target) => {
       let message: string | null = null;
@@ -211,7 +238,14 @@ export function InfiniteProvider({ children }: { children: ReactNode }) {
       setNotice(message);
       return message;
     },
-    onNewShoe: () => setSession((current) => newShoe(current)),
+    onNewShoe: () =>
+      setSession((current) => {
+        const busy = current.phase !== "complete" && current.events.some((event) => event.round === current.round);
+        if (busy && typeof window !== "undefined" && !window.confirm("Die Runde ist noch offen. Neuen Shoe trotzdem starten?")) {
+          return current;
+        }
+        return createShoe(settings.cut, settings.decks ?? 8);
+      }),
     onNextRound: () => {
       const result = nextRound(session);
       setSession(result.session);
@@ -223,6 +257,37 @@ export function InfiniteProvider({ children }: { children: ReactNode }) {
     onEdit: (id, rank, suit) => setSession((current) => editEvent(current, id, rank, suit).session),
     onRetarget: (id, target) => setSession((current) => retargetEvent(current, id, target)),
     onStand: () => setSession((current) => stand(current)),
+    beginRound: () => setSession((current) => beginRound(current)),
+    split: (kind) => {
+      let message: string | null = null;
+      setSession((current) => {
+        const result = splitHand(current, kind);
+        message = result.error ?? null;
+        return result.session;
+      });
+      setNotice(message);
+      return message;
+    },
+    doubleDown: (mode) => {
+      let message: string | null = null;
+      setSession((current) => {
+        const result = doubleHand(current, mode);
+        message = result.error ?? null;
+        return result.session;
+      });
+      setNotice(message);
+      return message;
+    },
+    insure: (stake) => {
+      let message: string | null = null;
+      setSession((current) => {
+        const result = setInsurance(current, stake);
+        message = result.error ?? null;
+        return result.session;
+      });
+      setNotice(message);
+      return message;
+    },
     onCut: () => setSession((current) => fireManualCut(current)),
     confirmPlay: (recommendation, stakes) => {
       setSession((current) =>

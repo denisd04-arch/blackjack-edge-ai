@@ -4,6 +4,7 @@ import { rulesFromFields } from "./rules";
 import {
   dealerCards,
   myHandEvents,
+  type PlayerHand,
   type RoundParticipation,
   type RoundStakes,
   type ShoeEvent,
@@ -18,6 +19,26 @@ import {
   type PairCategory,
   type Plus3Category,
 } from "./side-bets";
+
+export type MainOutcome =
+  | "WIN"
+  | "LOSS"
+  | "PUSH"
+  | "BLACKJACK"
+  | "BUST"
+  | "DEALER_BUST"
+  | "DEALER_22"
+  | "SKIPPED"
+  | "MIXED";
+
+export interface HandLine {
+  handIndex: number;
+  outcome: MainOutcome;
+  total: number;
+  net: number;
+  cash: number;
+  cashFunded: boolean;
+}
 
 export interface SideLine {
   id: "any_pair" | "twenty_one_plus_three" | "hot3" | "bust_it";
@@ -49,6 +70,10 @@ export interface RoundSettlement {
   sideRoi: number | null;
   roundRoi: number | null;
   sides: SideLine[];
+  outcome: MainOutcome | null;
+  hands: HandLine[];
+  insuranceCash: number;
+  insuranceNet: number | null;
 }
 
 export interface Ledger {
@@ -192,6 +217,8 @@ export function settleRound(input: {
   actions: readonly string[];
   bustIt22Pays: boolean | null;
   handFrozen: boolean;
+  hands?: readonly { index: number; events: readonly ShoeEvent[]; frozen: boolean; cash: boolean; mode: StakeMode; naturalOk: boolean }[];
+  insuranceStake?: number | null;
 }): RoundSettlement {
   const actual = input.participation.actual;
   const stakes = actual === "SKIPPED" ? { ...input.participation.stakes, main: 0 } : input.participation.stakes;
@@ -216,13 +243,18 @@ export function settleRound(input: {
     sideRoi: null,
     roundRoi: null,
     sides: [],
+    outcome: null,
+    hands: [],
+    insuranceCash: 0,
+    insuranceNet: null,
   };
   if (!stakesAreWhole(stakes)) {
     return { ...base, pendingReason: "Stakes have to be whole units of currency." };
   }
   const mode = stakeModeFromActions(input.actions);
-  if (mode === "SPLIT" && actual === "PLAYED" && stakes.main > 0) {
-    return { ...base, pendingReason: "A split was chosen. This table keeps one frozen hand, so the round stays unsettled." };
+  const recorded = input.hands ?? [];
+  if (mode === "SPLIT" && actual === "PLAYED" && stakes.main > 0 && recorded.length < 2) {
+    return { ...base, pendingReason: "A split was chosen. Record each hand before the round can be settled." };
   }
   const playerBuckets = bucketsOf(input.playerEvents);
   const playerValue = playerBuckets.length ? valueCards(playerBuckets) : null;
@@ -247,21 +279,63 @@ export function settleRound(input: {
 
   let mainNet = 0;
   let mainCash = 0;
-  if (played && playerValue && dealer.finished && mode !== "SPLIT") {
+  let handLines: HandLine[] = [];
+  const rules = rulesFromFields().rules;
+  if (played && dealer.finished && recorded.length > 0) {
+    if (recorded.some((hand) => !hand.frozen)) {
+      return { ...base, playerTotal: playerValue?.total ?? null, dealerTotal: dealer.total, pendingReason: "Freeze every hand before it is settled." };
+    }
+    for (const hand of recorded) {
+      const buckets = bucketsOf(hand.events);
+      const value = valueCards(buckets);
+      const stakeMode: StakeMode = hand.mode;
+      const settled: SettledHand = {
+        total: value.total,
+        bust: value.bust,
+        blackjack: hand.naturalOk && value.blackjack,
+        charlie: rules.charlie && value.charlie,
+        cash: hand.cash,
+        mode: stakeMode,
+      };
+      let unit = handProfit(settled, dealer.kind);
+      if (rules.dealerPeeks && dealer.kind.type === "bj" && stakeMode === "regular-double" && hand.cash) unit = -1;
+      const net = unit * stakes.main;
+      const cash = hand.cash ? cashUnits(stakeMode) * stakes.main : 0;
+      mainNet += net;
+      mainCash += cash;
+      handLines.push({
+        handIndex: hand.index,
+        outcome: classifyMain(settled, dealer.kind),
+        total: value.total,
+        net,
+        cash,
+        cashFunded: hand.cash,
+      });
+    }
+  } else if (played && playerValue && dealer.finished && mode !== "SPLIT") {
     const stakeMode: StakeMode = mode;
     const hand: SettledHand = {
       total: playerValue.total,
       bust: playerValue.bust,
       blackjack: playerValue.blackjack,
-      charlie: playerValue.charlie,
+      charlie: rules.charlie && playerValue.charlie,
       cash: true,
       mode: stakeMode,
     };
     let unit = handProfit(hand, dealer.kind);
-    const peek = rulesFromFields().rules.dealerPeeks;
-    if (peek && dealer.kind.type === "bj" && stakeMode === "regular-double") unit = -1;
+    if (rules.dealerPeeks && dealer.kind.type === "bj" && stakeMode === "regular-double") unit = -1;
     mainNet = unit * stakes.main;
     mainCash = cashUnits(stakeMode) * stakes.main;
+    handLines = [
+      {
+        handIndex: 0,
+        outcome: classifyMain(hand, dealer.kind),
+        total: playerValue.total,
+        net: mainNet,
+        cash: mainCash,
+        cashFunded: true,
+      },
+    ];
   }
 
   const playerIndex = indexesOf(input.playerEvents);
@@ -316,10 +390,16 @@ export function settleRound(input: {
       pendingReason: bustPending ?? `${sidePending.name} is not ready to settle.`,
     };
   }
+  const insuranceStake = played ? Math.max(0, input.insuranceStake ?? 0) : 0;
+  if (insuranceStake > Math.floor(stakes.main / 2)) {
+    return { ...base, playerTotal: playerValue?.total ?? null, dealerTotal: dealer.total, pendingReason: "Insurance is above half the main stake." };
+  }
+  const insuranceNet = insuranceStake === 0 ? 0 : dealer.kind.type === "bj" ? insuranceStake * 2 : -insuranceStake;
   const sideNet = sides.reduce((sum, side) => sum + (side.net ?? 0), 0);
   const sideCash = sides.reduce((sum, side) => sum + side.stake, 0);
-  const roundNet = mainNet + sideNet;
-  const roundCash = mainCash + sideCash;
+  const roundNet = mainNet + sideNet + insuranceNet;
+  const roundCash = mainCash + sideCash + insuranceStake;
+  const outcome = !played ? "SKIPPED" : handLines.length > 1 && new Set(handLines.map((hand) => hand.outcome)).size > 1 ? "MIXED" : handLines[0]?.outcome ?? "PUSH";
   return {
     ...base,
     status: "SETTLED",
@@ -337,13 +417,32 @@ export function settleRound(input: {
     sideRoi: roi(sideNet, sideCash),
     roundRoi: roi(roundNet, roundCash),
     sides,
+    outcome,
+    hands: handLines,
+    insuranceCash: insuranceStake,
+    insuranceNet,
   };
+}
+
+function classifyMain(hand: SettledHand, dealer: DealerKind): MainOutcome {
+  if (hand.bust) return "BUST";
+  if (hand.blackjack && dealer.type === "bj") return "PUSH";
+  if (hand.blackjack) return "BLACKJACK";
+  if (hand.charlie && dealer.type !== "bj" && dealer.type !== "22") return "WIN";
+  if (dealer.type === "22") return "DEALER_22";
+  if (dealer.type === "bust") return "DEALER_BUST";
+  if (dealer.type === "bj") return "LOSS";
+  if (hand.total > dealer.total) return "WIN";
+  if (hand.total < dealer.total) return "LOSS";
+  return "PUSH";
 }
 
 export function settleSessionRound(session: ShoeSession): RoundSettlement | null {
   const participation = session.participation;
   if (!participation || participation.round !== session.round) return null;
   const actions = session.overrides.filter((row) => row.round === session.round).map((row) => row.chosen);
+  const roundEvents = session.events.filter((event) => event.round === session.round);
+  const byId = new Map(roundEvents.map((event) => [event.id, event]));
   return settleRound({
     shoeId: session.id,
     round: session.round,
@@ -352,8 +451,24 @@ export function settleSessionRound(session: ShoeSession): RoundSettlement | null
     dealerEvents: dealerCards(session),
     actions,
     bustIt22Pays: session.bustIt22Pays,
-    handFrozen: Boolean(session.frozenHandIds && session.frozenHandIds.length >= 2),
+    handFrozen: Boolean(session.frozenHandIds && session.frozenHandIds.length >= 2) || session.hands.some((hand) => hand.frozen),
+    insuranceStake: session.insuranceStake,
+    hands: session.hands.map((hand) => handPayload(hand, byId)),
   });
+}
+
+function handPayload(hand: PlayerHand, byId: Map<string, ShoeEvent>) {
+  return {
+    index: hand.index,
+    events: hand.cardIds.flatMap((id) => {
+      const event = byId.get(id);
+      return event ? [event] : [];
+    }),
+    frozen: hand.frozen,
+    cash: hand.cash,
+    mode: hand.mode,
+    naturalOk: hand.naturalOk,
+  };
 }
 
 export function applyToLedger(ledger: Ledger, entry: RoundSettlement): { ledger: Ledger; applied: boolean } {
@@ -436,6 +551,10 @@ export function settlementFromUnit(input: {
     sideRoi: null,
     roundRoi: roi(mainNet, mainCash),
     sides: [],
+    outcome: mainNet > 0 ? "WIN" : mainNet < 0 ? "LOSS" : "PUSH",
+    hands: [],
+    insuranceCash: 0,
+    insuranceNet: 0,
   };
 }
 

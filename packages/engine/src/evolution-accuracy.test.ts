@@ -320,7 +320,7 @@ describe("table honesty", () => {
     expect(revealed.holeStaysUnknown).toBe(false);
   });
 
-  it("marks an Infinite extra seat as a double count", () => {
+  it("keeps a confirmed Infinite other-player card in the shoe", () => {
     const session = new DigitalTableSession({ decks: 1 });
     session.startRound();
     session.dealCard("8", "spades", "player");
@@ -336,9 +336,10 @@ describe("table honesty", () => {
       view: "infinite",
       phase: "your_turn",
     });
-    expect(observed.status).toBe("LIMITED");
-    expect(observed.blocksDecision).toBe(true);
-    expect(observed.messageDe).toMatch(/Doppelzählung/);
+    expect(observed.status).toBe("OK");
+    expect(observed.blocksDecision).toBe(false);
+    expect(observed.messageDe).not.toMatch(/Doppelzählung/);
+    expect(snap.shoe.remainingByRank["2"]).toBe(3);
   });
 
   it("locks a forward recommendation before the result", () => {

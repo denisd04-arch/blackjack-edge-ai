@@ -106,7 +106,7 @@ export function TableScreen() {
   const edgePct = edge?.playerEdge == null ? null : edge.playerEdge * 100;
   const running = runningCount(seenRanks(session), settings.countSystem);
   const trueText =
-    live?.trueCountStatus === "OK" && live.trueCount != null ? live.trueCount.toFixed(2) : "Invalid";
+    live?.trueCountStatus === "OK" && live.trueCount != null ? live.trueCount.toFixed(2) : "ungültig";
   const quote = joined ? settleSessionRound(session) : null;
   const shoeMoney = shoeRollup(store.ledger, session.id);
   const lifeMoney = lifetimeRollup(store.ledger);
@@ -126,7 +126,9 @@ export function TableScreen() {
     store.chooseAction(action, recommended);
     closeRecommendation();
     if (action === "STAND") store.onStand();
+    if (action === "SPLIT_FREE" || action === "SPLIT_REGULAR") store.split(action);
     if (action === "DOUBLE_FREE" || action === "DOUBLE_REGULAR") {
+      store.doubleDown(action === "DOUBLE_FREE" ? "free-double" : "regular-double");
       setArmedHits(myHits);
       setDoubleArmed(true);
     }
@@ -134,18 +136,18 @@ export function TableScreen() {
 
   return (
     <div className="grid gap-3 lg:grid-cols-[15rem_minmax(0,1fr)]">
-      <section className="rounded-2xl border border-[#e2c27a]/30 bg-[#0c3b2e] p-3" aria-label="Shoe">
-        <h2 className="text-xs uppercase tracking-widest text-[#e2c27a]">Shoe</h2>
+      <section className="rounded-2xl border border-[#e2c27a]/30 bg-[#0c3b2e] p-3" aria-label="Schuh">
+        <h2 className="text-xs uppercase tracking-widest text-[#e2c27a]">Schuh</h2>
         <p className="font-display text-4xl leading-none">{remaining}</p>
         <dl className="mt-2 space-y-1 text-sm">
-          <Row label="Dealt" value={String(dealt)} />
+          <Row label="Gegeben" value={String(dealt)} />
           <Row label="Decks" value={String(session.decks)} />
           <Row label="Cut" value={cutLabel(session.cut, session)} />
-          <Row label="Running count" value={String(running)} />
-          <Row label="True count" value={trueText} />
+          <Row label="Running Count" value={String(running)} />
+          <Row label="True Count" value={trueText} />
           <Row label="System" value={countSystemLabel(settings.countSystem)} />
           <Row
-            label="Data quality"
+            label="Qualität"
             value={qualityLabel(edge?.nextRound.quality ?? null, solving || !edge, live?.trueCountStatus !== "INVALID")}
           />
         </dl>
@@ -163,7 +165,7 @@ export function TableScreen() {
             data-testid="round-advisor"
             className="rounded-3xl border border-[#e2c27a]/40 bg-[#0a2a20] p-4 text-center sm:p-6"
           >
-            <p className="text-xs uppercase tracking-[0.2em] text-[#e2c27a]">Next round from this shoe</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-[#e2c27a]">Nächste Runde aus diesem Shoe</p>
             <p className="font-display text-5xl sm:text-7xl">{solving || !edge ? "…" : actionLabel(call)}</p>
             {!solving && edge ? <p className="text-sm">{advisorDetail(call)}</p> : null}
             <p className="mt-2 font-mono text-lg">
@@ -186,11 +188,11 @@ export function TableScreen() {
               hole={holeReserved(session)}
               revealed={roundEvents.filter((event) => event.target === "dealer_hole")}
             />
-            <Hand title="Other Players" cards={roundEvents.filter((event) => event.target === "other")} />
+            <Hand title="Andere Spieler" cards={roundEvents.filter((event) => event.target === "other")} />
           </div>
           <p className="mt-3 text-sm text-[#e2c27a]">
             {session.frozenHandIds ? `Frozen total ${myHandTotal(session) ?? "—"}. Other cards do not change it.` : null}
-            {resolved ? ` Next card: ${targetLabel(resolved.english)}` : " No card is needed."}
+            {resolved ? ` Nächste Karte: ${targetLabel(resolved.english)}` : " Keine Karte nötig."}
             {doubleArmed ? " One more card finishes the double." : ""}
             {session.frozenHandIds && !dealerFinished(session) ? " Settlement waits until the dealer finishes." : ""}
           </p>
@@ -207,7 +209,7 @@ export function TableScreen() {
             ) : null}
             {!cardOpen && resolved ? (
               <button type="button" className="min-h-11 rounded-lg border border-white/20 px-4" onClick={() => setCardClosedFor(null)}>
-                Add a card
+                Karte hinzufügen
               </button>
             ) : null}
             {decisionKey && edge?.hand && !recommendationOpen ? (
@@ -307,6 +309,8 @@ export function TableScreen() {
           onTake={takeAction}
           onInsurance={(choice) => {
             store.chooseAction(choice, edge.insurance?.recommendation ?? "SKIP");
+            const main = session.participation?.stakes.main ?? 0;
+            store.insure(choice === "INSURANCE" ? Math.floor(main / 2) : 0);
           }}
         />
       ) : null}
@@ -322,7 +326,7 @@ export function TableScreen() {
             <Row label="Both" value={pct(live?.freeBet.pBoth ?? 0)} />
             <Row label="Either" value={pct(live?.freeBet.pEither ?? 0)} />
             <Row label="Hidden card reserved" value={holeReserved(session) ? "Yes" : "No"} />
-            <Row label="Suggested stake" value={`${settings.currency} ${edge?.kelly.stake.toFixed(2) ?? "…"}`} />
+            <Row label="Einsatz" value={edge?.kelly.stake ? `${settings.currency} ${edge.kelly.stake.toFixed(2)}` : "kein Einsatz"} />
           </dl>
           <p className="mt-2 text-xs text-[#f6f1e4]/60">
             Either is the double chance plus the split chance, minus both. It is not added on top of the round edge. The suggested stake stays at zero while the main model is partially verified. The shoe and the money ledger are saved in this browser, not the database.
@@ -372,7 +376,13 @@ export function TableScreen() {
         </Modal>
       ) : null}
 
-      {!joined && !blocked && session.phase !== "complete" ? (
+      {!session.roundStarted && !blocked && session.phase !== "complete" && roundEvents.length === 0 ? (
+        <button type="button" className="min-h-11 rounded-lg bg-[#e2c27a] px-4 font-semibold text-[#1a1408]" onClick={() => store.beginRound()}>
+          Runde starten
+        </button>
+      ) : null}
+
+      {session.roundStarted && !joined && !blocked && session.phase !== "complete" ? (
         <ParticipationModal
           recommendation={solving || !edge ? "The assistant is still solving. That is not a wager." : `Assistant says ${actionLabel(call)}. ${advisorDetail(call)} That is not a wager.`}
           currency={settings.currency}
@@ -532,12 +542,12 @@ function CardModal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Add a card"
+        aria-label="Karte hinzufügen"
         className="max-h-[85vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-[#06281c] p-3 text-[#f6f1e4] shadow-xl sm:p-4"
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="font-display text-2xl">Add a card</h2>
+            <h2 className="font-display text-2xl">Karte hinzufügen</h2>
             <p className="text-sm text-[#e2c27a]">
               {targetLabel(english)} · {automatic ? "automatic" : "chosen"}
             </p>
@@ -650,7 +660,7 @@ function RecommendationModal({
             </li>
           ))}
         </ul>
-        {insurance ? (
+        {insurance && insurance.recommendation !== "SKIP_INSUFFICIENT" ? (
           <div className="mt-4 rounded-xl bg-white p-3 text-sm">
             <p className="font-semibold">Insurance</p>
             <p>
@@ -667,7 +677,7 @@ function RecommendationModal({
           </div>
         ) : null}
         <button type="button" className="mt-4 min-h-11 rounded-lg border border-[#1a1408]/20 px-4" onClick={onClose}>
-          Close recommendation
+          Empfehlung schließen
         </button>
       </div>
     </div>
@@ -724,16 +734,16 @@ function ParticipationModal({
   const stakes = { main: choice === "skipped" ? 0 : main, anyPair, twentyOnePlusThree: plus, hot3: hot, bustIt: bust };
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-2 sm:items-center">
-      <div role="dialog" aria-modal="true" aria-label="Did you play" className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-[#f6f1e4] p-4 text-[#1a1408]">
-        <h2 className="font-display text-3xl">Did you play this round?</h2>
+      <div role="dialog" aria-modal="true" aria-label="Hast du mitgespielt" className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-[#f6f1e4] p-4 text-[#1a1408]">
+        <h2 className="font-display text-3xl">Hast du diese Runde mitgespielt?</h2>
         <p className="mt-2 text-sm">{recommendation}</p>
         {choice === null ? (
           <div className="mt-4 flex flex-wrap gap-2">
             <button type="button" className="min-h-11 rounded-lg bg-[#145c40] px-4 text-[#f6f1e4]" onClick={() => setChoice("played")}>
-              YES I PLAYED
+              JA, ICH HABE GESPIELT
             </button>
             <button type="button" className="min-h-11 rounded-lg border border-[#1a1408]/30 px-4" onClick={() => setChoice("skipped")}>
-              NO I SKIPPED
+              NEIN, ICH HABE AUSGESETZT
             </button>
           </div>
         ) : (
@@ -756,7 +766,7 @@ function ParticipationModal({
             <StakeField label="Bust It" value={bust} min={0} onChange={setBust} />
             <p className="text-xs text-[#1a1408]/70">Whole units only. A free double or free split is the casino&apos;s money, not yours. Only these amounts are exposure.</p>
             <div className="flex flex-wrap gap-2">
-              <button type="submit" className="min-h-11 rounded-lg bg-[#145c40] px-4 text-[#f6f1e4]">Confirm stakes</button>
+              <button type="submit" className="min-h-11 rounded-lg bg-[#145c40] px-4 text-[#f6f1e4]">Einsätze bestätigen</button>
               <button type="button" className="min-h-11 rounded-lg border border-[#1a1408]/30 px-4" onClick={() => setChoice(null)}>Back</button>
             </div>
           </form>
