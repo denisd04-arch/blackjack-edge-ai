@@ -15,10 +15,10 @@ export function InfiniteShell({ children }: { children: ReactNode }) {
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-3 py-3">
           <Link href="/" className="mr-auto min-h-11">
             <span className="font-display text-lg font-semibold tracking-tight">Blackjack Edge AI</span>
-            <span className="block text-xs text-[#e2c27a]">Infinite Free Bet · one shoe</span>
+            <span className="block text-xs text-[#e2c27a]">Infinite Free Bet · ein Shoe</span>
           </Link>
           <button type="button" className="min-h-11 rounded-lg bg-[#e2c27a] px-4 font-semibold text-[#1a1408]" onClick={onNewShoe}>
-            NEW SHOE
+            NEUER SCHUH
           </button>
           <button
             type="button"
@@ -28,7 +28,7 @@ export function InfiniteShell({ children }: { children: ReactNode }) {
               if (error) window.alert(error);
             }}
           >
-            NEXT ROUND
+            NÄCHSTE RUNDE
           </button>
           <nav aria-label="Secondary" className="flex flex-wrap gap-1">
             {HEADER_NAV.map((item) => (

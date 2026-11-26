@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { createDealerMemos, dealerDistribution } from "./dealer";
 import { compositionHandEv, compositionNextRound, PRODUCT_ASSUMPTIONS } from "./composition-ev";
 import { analyzeRemaining, MAIN_EV_VERIFICATION } from "./analysis";
+import { stakeFromVerifiedDistribution } from "./kelly";
+import { explainMainRtpGap } from "./rtp-gap";
 import { evaluateActions, insuranceEv, nextRoundMainEv } from "./ev";
 import { fullKellyFraction, kellyStake } from "./kelly";
 import {
@@ -395,6 +397,33 @@ describe("fresh main RTP stays unresolved", () => {
     expect(live.mainVerification).toBe(MAIN_EV_VERIFICATION);
     expect(live.recommendation).toBe("NOT_DEFINITIVE");
     expect(live.kelly.stake).toBe(0);
+    expect(live.recommendation).not.toBe("PLAY");
+    const gap = explainMainRtpGap({ productRtp: 1 + base.ev, limitedRtp: 1 + limited.ev });
+    expect(gap.fittedToHelp).toBe(false);
+    expect(gap.verification).toBe("PARTIALLY_VERIFIED");
+    expect(gap.assumptions.join(" ")).toMatch(/DAS|double after split/);
+    expect(gap.deltaProductVsHelp).toBeGreaterThan(0.005);
+    expect(Math.abs(gap.deltaLimitedVsHelp)).toBeLessThan(Math.abs(gap.deltaProductVsHelp));
+    expect(stakeFromVerifiedDistribution({
+      verification: "PARTIALLY_VERIFIED",
+      quality: "APPROXIMATE",
+      dist: [{ profit: 1, p: 0.6 }, { profit: -1, p: 0.4 }],
+      bankroll: 1000,
+      userFraction: 0.5,
+      limit: { min: 1, max: 100 },
+      openExposure: 0,
+    })).toBeNull();
+    const sized = stakeFromVerifiedDistribution({
+      verification: "VERIFIED",
+      quality: "EXACT",
+      dist: [{ profit: 1, p: 0.6 }, { profit: -1, p: 0.4 }],
+      bankroll: 1000,
+      userFraction: 0.5,
+      limit: { min: 1, max: 100 },
+      openExposure: 0,
+    });
+    expect(sized?.stake).toBeGreaterThan(0);
+    expect(sized!.stake).toBeLessThanOrEqual(100);
 
     const bust = bustItFromShoe(freshShoe52(8));
     expect(bust.verification).toBe("UNVERIFIED");

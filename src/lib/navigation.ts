@@ -8,25 +8,25 @@ export type NavSection = {
 export const HEADER_NAV: NavSection[] = [
   {
     href: "/settings",
-    label: "Settings",
-    description: "Stakes, cut card, counting system, and presets.",
+    label: "Einstellungen",
+    description: "Einsätze, Cut Card, Zählsystem und Presets.",
   },
   {
     href: "/testing",
-    label: "Testing",
-    description: "Manual, autoplay, and multi-shoe runs.",
+    label: "Test",
+    description: "Manuell, Autoplay und mehrere Shoes.",
   },
   {
     href: "/rulebook",
-    label: "Rulebook",
-    description: "Rule status and the fresh-shoe help reference.",
+    label: "Regelwerk",
+    description: "Regelstatus und die Fresh-Shoe-Referenz.",
   },
 ];
 
 export const FORWARD_SECTION: NavSection = {
   href: "/forward",
-  label: "Forward testing",
-  description: "Immutable recommendations captured before you act.",
+  label: "Forward-Test",
+  description: "Empfehlungen, die vor der Aktion eingefroren werden.",
 };
 
 /** Header routes plus forward testing, which is opened from Testing. */

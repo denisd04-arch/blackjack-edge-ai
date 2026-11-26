@@ -10,4 +10,7 @@ export * from "./presets";
 export * from "./analysis";
 export * from "./session";
 export * from "./settlement";
+export * from "./status";
 export * from "./simulate";
+export * from "./playthrough";
+export * from "./rtp-gap";

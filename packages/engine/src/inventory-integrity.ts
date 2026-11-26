@@ -105,13 +105,14 @@ export function observeShoe(input: {
   const holeRank = dealer[1]?.rank ?? null;
   const holeVisible = input.phase === "dealer" || input.phase === "settled";
 
+  // Other-player cards are shoe removals. They are not a second copy of the personal hand.
   if (
     input.view === "infinite" &&
-    roundCards.some((card) => card.target === "other")
+    roundCards.some((card) => card.target === "other") &&
+    roundCards.filter((card) => card.target === "player").length === 0 &&
+    input.phase === "your_turn"
   ) {
-    reasons.push(
-      "Infinite hat keine eigenen Karten anderer Plätze — das wäre eine Doppelzählung."
-    );
+    reasons.push("Andere Plätze sind im Schuh, die eigene Hand ist noch leer.");
   }
   if (
     (input.phase === "your_turn" ||

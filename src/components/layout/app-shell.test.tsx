@@ -23,11 +23,11 @@ describe("InfiniteShell", () => {
       </InfiniteShell>
     );
     expect(screen.getByText("Blackjack Edge AI")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "NEW SHOE" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "NEXT ROUND" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "SETTINGS" })).toHaveAttribute("href", "/settings");
-    expect(screen.getByRole("link", { name: "TESTING" })).toHaveAttribute("href", "/testing");
-    expect(screen.getByRole("link", { name: "RULEBOOK" })).toHaveAttribute("href", "/rulebook");
+    expect(screen.getByRole("button", { name: "NEUER SCHUH" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "NÄCHSTE RUNDE" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "EINSTELLUNGEN" })).toHaveAttribute("href", "/settings");
+    expect(screen.getByRole("link", { name: "TEST" })).toHaveAttribute("href", "/testing");
+    expect(screen.getByRole("link", { name: "REGELWERK" })).toHaveAttribute("href", "/rulebook");
     expect(screen.queryByRole("link", { name: "Forward Testing" })).not.toBeInTheDocument();
   });
 });

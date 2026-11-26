@@ -9,13 +9,13 @@ export const ENGLISH_TARGETS: readonly EnglishTarget[] = ["my_hand", "dealer", "
 export function targetLabel(target: EnglishTarget): string {
   switch (target) {
     case "my_hand":
-      return "My Hand";
+      return "Meine Hand";
     case "dealer":
       return "Dealer";
     case "other":
-      return "Other Players";
+      return "Andere Spieler";
     case "hidden":
-      return "Hidden Card";
+      return "Hole Card";
   }
 }
 
@@ -26,24 +26,24 @@ export function actionLabel(action: string): string {
     case "STAND":
       return "Stand";
     case "DOUBLE_FREE":
-      return "Free double";
+      return "Free Double";
     case "DOUBLE_REGULAR":
-      return "Regular double";
+      return "Regular Double";
     case "SPLIT_FREE":
-      return "Free split";
+      return "Free Split";
     case "SPLIT_REGULAR":
-      return "Regular split";
+      return "Regular Split";
     case "INSURANCE":
-      return "Take insurance";
+      return "Insurance nehmen";
     case "SKIP_INSURANCE":
-      return "Skip insurance";
+      return "Insurance auslassen";
     case "PLAY":
-      return "Play";
+      return "PLAY";
     case "SKIP":
     case "SKIP_INSUFFICIENT":
-      return "Skip";
+      return "SKIP";
     case "NOT_DEFINITIVE":
-      return "Not definitive";
+      return "NOT DEFINITIVE";
     case "BET":
       return "Bet";
     case "UNVERIFIED":
@@ -56,13 +56,13 @@ export function actionLabel(action: string): string {
 export function advisorDetail(call: string): string {
   switch (call) {
     case "SKIP_INSUFFICIENT":
-      return "Not enough data to judge this shoe.";
+      return "Zu wenig Daten für diesen Shoe.";
     case "NOT_DEFINITIVE":
-      return "Partially verified. This is not a play.";
+      return "Nur teilweise verifiziert. Das ist kein PLAY.";
     case "PLAY":
-      return "The computed edge clears your minimum.";
+      return "Der berechnete Edge liegt über deinem Minimum.";
     default:
-      return "The computed edge is not above your minimum.";
+      return "Der berechnete Edge liegt nicht über deinem Minimum.";
   }
 }
 
@@ -208,14 +208,14 @@ export function probabilityLabel(key: string): string {
 }
 
 const SUIT_NAME = {
-  hearts: "hearts",
-  diamonds: "diamonds",
-  clubs: "clubs",
-  spades: "spades",
+  hearts: "Herz",
+  diamonds: "Karo",
+  clubs: "Kreuz",
+  spades: "Pik",
 } as const;
 
 export function cardAria(rank: string, suit: keyof typeof SUIT_NAME, left: number): string {
-  return `${rank} of ${SUIT_NAME[suit]}, ${left} left`;
+  return `${rank} ${SUIT_NAME[suit]}, noch ${left}`;
 }
 
 export interface TargetContext {

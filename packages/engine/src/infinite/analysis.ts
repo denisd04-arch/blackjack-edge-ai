@@ -72,9 +72,16 @@ export function analyzeRemaining(input: {
 }): LiveAnalysis {
   const counts = bucketsFrom52(input.shoe52);
   const freeBet = freeBetProbabilities(counts);
-  const sideBets = input.inventoryValid
+  const computedSides = input.inventoryValid
     ? sideBetsFromShoe(input.shoe52, input.settings.minEdge)
     : [];
+  const sideBets = input.settings.sideBets
+    ? computedSides
+    : computedSides.map((row) => ({
+        ...row,
+        decision: row.decision === "SKIP_INSUFFICIENT" ? row.decision : ("SKIP" as const),
+        note: `${row.note} Side bets are off in this preset, so none of them is staked.`,
+      }));
   const count = trueCount({
     seen: input.seenRanks ?? [],
     system: input.countSystem ?? input.settings.countSystem,
@@ -126,12 +133,23 @@ export function analyzeRemaining(input: {
     recommendation = "NOT_DEFINITIVE";
   } else recommendation = "SKIP";
 
-  const kelly = kellyStake({
+  const kellyBase = kellyStake({
     bankroll: input.settings.bankroll,
     userFraction: input.settings.kellyFraction,
-    dist: [{ profit: Math.min(nextRound.ev, 0), p: 1 }],
+    // A one-point stand-in is not a profit distribution. Stake stays 0 until a verified distribution is supplied.
+    dist: [{ profit: 0, p: 1 }],
     experimental: input.settings.experimentalFreeBetComparison ? { pEither: freeBet.pEither } : null,
   });
+  const kelly = {
+    ...kellyBase,
+    stake: 0,
+    fullFraction: 0,
+    fractional: 0,
+    note:
+      playerEdge !== null && playerEdge > input.settings.minEdge
+        ? "No stake recommendation. The main model is partially verified, so a positive edge is not a bet size."
+        : "No stake recommendation. There is no validated full profit distribution for this shoe.",
+  };
 
   return {
     helpReference: FRESH_SHOE_HELP_REFERENCE,

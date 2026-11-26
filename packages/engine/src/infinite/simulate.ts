@@ -1,4 +1,5 @@
 import { evaluateActions, mulberry32 } from "./ev";
+import { playShoeEngine } from "./playthrough";
 import {
   bucketsFrom52,
   freshShoe52,
@@ -10,7 +11,7 @@ import {
 } from "./model";
 import { handProfit, type DealerKind, type SettledHand } from "./model";
 import type { CutConfig } from "./presets";
-import { applyToLedger, emptyLedger, settlementFromUnit, type Ledger } from "./settlement";
+import { type Ledger } from "./settlement";
 
 export interface VisibleState {
   counts: Uint8Array;
@@ -230,78 +231,24 @@ export function consumeShoe(input: {
   backgroundCards?: number;
   maxRounds?: number;
 }): { net: number; rounds: number; dealt: number; after5: number | null; after10: number | null; ledger: Ledger } {
-  const order = shuffleShoe(input.seed);
-  const cut = input.cutDealt ?? 312;
-  const background = input.backgroundCards ?? 2;
-  let cursor = 0;
-  let net = 0;
-  let rounds = 0;
-  let after5: number | null = null;
-  let after10: number | null = null;
-  let ledger = emptyLedger(0);
-  const draw = () => order[cursor++];
-  while (cursor + 4 < order.length && cursor < cut && rounds < (input.maxRounds ?? 1000)) {
-    const c1 = draw();
-    const upCard = draw();
-    const c2 = draw();
-    const hole = draw();
-    if (c1 === undefined || upCard === undefined || c2 === undefined || hole === undefined) break;
-    const player = [toBucket(c1), toBucket(c2)];
-    const up = toBucket(upCard);
-    const action = fastAction(player, up);
-    if (action === "HIT" || action === "DOUBLE_FREE") {
-      const extra = draw();
-      if (extra !== undefined) player.push(toBucket(extra));
-    }
-    const dealerCards = [up, toBucket(hole)];
-    let total = bucketTotal(dealerCards);
-    let aces = dealerCards.filter((c) => c === 0).length;
-    while (total < 17 && cursor < order.length) {
-      const next = draw();
-      if (next === undefined) break;
-      dealerCards.push(toBucket(next));
-      total = bucketTotal(dealerCards);
-      aces = dealerCards.filter((c) => c === 0).length;
-      void aces;
-    }
-    const kind: DealerKind =
-      dealerCards.length === 2 && total === 21
-        ? { type: "bj" }
-        : total === 22
-          ? { type: "22" }
-          : total > 22
-            ? { type: "bust" }
-            : { type: "total", total };
-    const playerTotal = bucketTotal(player);
-    const unitNet = handProfit(
-      {
-        total: playerTotal,
-        bust: playerTotal > 21,
-        blackjack: player.length === 2 && playerTotal === 21 && action !== "SPLIT_FREE",
-        charlie: player.length >= 6 && playerTotal <= 21,
-        cash: true,
-        mode: action === "DOUBLE_FREE" ? "free-double" : "plain",
-      },
-      kind
-    );
-    net += unitNet;
-    const cashUnits = 1;
-    ledger = applyToLedger(
-      ledger,
-      settlementFromUnit({
-        shoeId: `sim-${input.seed}`,
-        round: rounds + 1,
-        unitNet,
-        cashUnits,
-        recommendation: "PLAY",
-      })
-    ).ledger;
-    for (let i = 0; i < background && cursor < cut && cursor < order.length; i += 1) draw();
-    rounds += 1;
-    if (rounds === 5) after5 = net;
-    if (rounds === 10) after10 = net;
-  }
-  return { net, rounds, dealt: cursor, after5, after10, ledger };
+  const played = playShoeEngine({
+    seed: input.seed,
+    cutDealt: input.cutDealt ?? 312,
+    maxRounds: input.maxRounds ?? 1000,
+    extraBurns: input.backgroundCards ?? 2,
+    stake: "flat",
+    flatStake: 1,
+    sideBets: false,
+    otherPlayers: 0,
+  });
+  return {
+    net: played.totalNet,
+    rounds: played.rounds,
+    dealt: played.cardsDealt,
+    after5: played.after5,
+    after10: played.after10,
+    ledger: played.ledger,
+  };
 }
 
 export function pairRank(card: number): FullRank {
